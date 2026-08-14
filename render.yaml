@@ -1,0 +1,23 @@
+# Render Blueprint — defines the web service and database together so the
+# whole app can be created with one "New Blueprint" action in the Render
+# dashboard, instead of configuring each piece by hand.
+#
+# Usage: Render Dashboard -> New -> Blueprint -> select this repo -> Apply.
+databases:
+  - name: econ-test-db
+    plan: free
+
+services:
+  - type: web
+    name: ca-foundation-economics-test-platform
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn run:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: econ-test-db
+          property: connectionString
