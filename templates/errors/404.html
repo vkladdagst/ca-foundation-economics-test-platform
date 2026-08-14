@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Not found{% endblock %}
+{% block body %}
+<div class="container-narrow" style="padding-top:100px; text-align:center;">
+  <h1>404</h1>
+  <p class="muted">The page or test you're looking for doesn't exist.</p>
+  <a class="btn btn-primary" href="{{ url_for('index') }}">Go home</a>
+</div>
+{% endblock %}

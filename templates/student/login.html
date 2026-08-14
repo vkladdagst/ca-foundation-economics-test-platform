@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Student Login{% endblock %}
+{% block body %}
+<div class="entry-card">
+  <div class="card card-pad">
+    <h1 style="text-align:center;">Student Login</h1>
+    <p class="muted small" style="text-align:center;">CA Foundation Economics — Test Platform</p>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label>Roll Number</label>
+        <input type="text" name="roll_number" required autofocus placeholder="e.g. ECO101">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" required placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block btn-lg">Log In</button>
+    </form>
+    <p class="small muted mt-16" style="text-align:center;">Don't have login details? Ask your teacher — they issue each student a roll number and password.</p>
+  </div>
+</div>
+{% endblock %}

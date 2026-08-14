@@ -1,0 +1,36 @@
+{% extends "teacher/_layout.html" %}
+{% set active = 'tests' %}
+{% block title %}Question Analytics — {{ test.title }}{% endblock %}
+{% block teacher_body %}
+<div class="page-header">
+  <a href="{{ url_for('teacher.results', test_id=test.id) }}" class="small">← Back to results</a>
+  <h1>Question-wise Analytics</h1>
+  <p class="muted small">{{ test.title }}</p>
+</div>
+
+<div class="card">
+  {% if stats %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Q</th><th>Question</th><th>Correct</th><th>Wrong</th><th>Unanswered</th><th>Accuracy</th></tr></thead>
+      <tbody>
+        {% for row in stats %}
+        <tr>
+          <td>{{ row.question.q_number }}</td>
+          <td style="white-space:normal; max-width:360px;">{{ row.question.text or '—' }}</td>
+          <td>{{ row.correct }}</td>
+          <td>{{ row.wrong }}</td>
+          <td>{{ row.unanswered }}</td>
+          <td>
+            <strong>{{ row.accuracy }}%</strong>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><h3>No questions</h3></div>
+  {% endif %}
+</div>
+{% endblock %}

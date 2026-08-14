@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>{% block title %}CA Foundation Economics — Test Platform{% endblock %}</title>
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+<div class="flash-wrap" id="flash-wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+</div>
+{% block body %}{% endblock %}
+<script>
+setTimeout(function(){
+  document.querySelectorAll('#flash-wrap .alert').forEach(function(el){ el.style.display='none'; });
+}, 5000);
+</script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}First-Time Setup{% endblock %}
+{% block body %}
+<div class="entry-card">
+  <div class="card card-pad">
+    <h1 style="text-align:center;">Create Your Teacher Account</h1>
+    <p class="muted small" style="text-align:center;">One-time setup for this deployment. This page disables itself once an account exists.</p>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label>Your Name</label>
+        <input type="text" name="name" required autofocus>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" required>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" required minlength="8">
+        <div class="form-hint">At least 8 characters.</div>
+      </div>
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input type="password" name="confirm" required minlength="8">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block btn-lg">Create Account</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

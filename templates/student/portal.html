@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}My Tests{% endblock %}
+{% block body %}
+<div class="container-narrow" style="padding-top:40px; padding-bottom:60px;">
+  <div class="flex-between mb-24">
+    <div>
+      <h1>My Tests</h1>
+      <p class="muted small">{{ current_user.name }} · {{ current_user.roll_number }}</p>
+    </div>
+    <a href="{{ url_for('student_auth.logout') }}" class="btn btn-sm">Log out</a>
+  </div>
+
+  {% if tests %}
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Test</th><th>Status</th><th>Your Result</th><th></th></tr></thead>
+        <tbody>
+          {% for t in tests %}
+          {% set sub = my_submissions.get(t.id) %}
+          <tr>
+            <td>{{ t.title }}</td>
+            <td><span class="badge badge-{{ t.status }}">{{ t.status }}</span></td>
+            <td>
+              {% if sub %}
+                {% if t.show_result_immediately %}{{ sub.score }} / {{ sub.max_score }} ({{ sub.percentage }}%){% else %}Submitted{% endif %}
+              {% else %}
+                <span class="muted">Not attempted</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if sub %}
+                {% if t.allow_review %}<a class="btn btn-sm" href="{{ url_for('student.mine', code=t.access_code) }}">Review Answers</a>{% endif %}
+              {% elif t.status == 'active' %}
+                <a class="btn btn-sm btn-primary" href="{{ url_for('student.entry', code=t.access_code) }}">Start</a>
+              {% else %}
+                <span class="muted small">Closed</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state"><h3>No tests available yet</h3><p>Your teacher hasn't published any tests.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

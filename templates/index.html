@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}CA Foundation Economics — Test Platform{% endblock %}
+{% block body %}
+<div class="container-narrow" style="padding-top: 90px; text-align:center;">
+  <h1>CA Foundation Economics</h1>
+  <p class="muted mb-24">Test Management &amp; Auto-Evaluation Platform</p>
+  <div class="card card-pad">
+    <p>Teachers: manage tests, answer keys, and results.</p>
+    <a class="btn btn-primary btn-block" href="{{ url_for('auth.login') }}">Teacher Login</a>
+    <hr class="divider">
+    <p>Students: log in with the roll number and password your teacher gave you.</p>
+    <a class="btn btn-block" href="{{ url_for('student_auth.login') }}">Student Login</a>
+  </div>
+</div>
+{% endblock %}

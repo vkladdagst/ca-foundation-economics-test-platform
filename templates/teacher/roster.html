@@ -1,0 +1,65 @@
+{% extends "teacher/_layout.html" %}
+{% set active = 'students' %}
+{% block title %}Students{% endblock %}
+{% block teacher_body %}
+<div class="page-header">
+  <div class="row">
+    <h1>Students</h1>
+    <div class="btn-group">
+      <a href="{{ url_for('teacher.student_new') }}" class="btn btn-primary">+ Add Student</a>
+      <a href="{{ url_for('teacher.student_import') }}" class="btn">Import from Excel</a>
+    </div>
+  </div>
+</div>
+
+<div class="card card-pad mb-16">
+  <form method="get" class="flex gap-12">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search by name or roll number" style="flex:1;">
+    <button class="btn" type="submit">Search</button>
+    {% if q %}<a class="btn btn-ghost" href="{{ url_for('teacher.roster') }}">Clear</a>{% endif %}
+  </form>
+</div>
+
+<div class="card">
+  {% if students %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Roll No.</th><th>Name</th><th>Batch</th><th>Email</th><th>Mobile</th><th></th></tr></thead>
+      <tbody>
+        {% for s in students %}
+        <tr>
+          <td class="mono">{{ s.roll_number }}</td>
+          <td>{{ s.name }}</td>
+          <td>{{ s.batch or '—' }}</td>
+          <td>{{ s.email or '—' }}</td>
+          <td>{{ s.mobile or '—' }}</td>
+          <td>
+            <div class="btn-group">
+              <a class="btn btn-sm" href="{{ url_for('teacher.student_edit', sid=s.id) }}">Edit</a>
+              <form method="post" action="{{ url_for('teacher.student_reset_password', sid=s.id) }}" onsubmit="return confirm('Reset password for ' + {{ s.name|tojson }} + '? Their old password will stop working.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm" type="submit">Reset Password</button>
+              </form>
+              <form method="post" action="{{ url_for('teacher.student_delete', sid=s.id) }}" onsubmit="return confirm('Remove ' + {{ s.name|tojson }} + ' from the roster? Their past submissions are kept.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-danger" type="submit">Remove</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <h3>No students yet</h3>
+    <p>Add your class roster so students can log in securely — one by one, or in bulk via Excel.</p>
+    <div class="btn-group" style="justify-content:center;">
+      <a href="{{ url_for('teacher.student_new') }}" class="btn btn-primary">+ Add Student</a>
+      <a href="{{ url_for('teacher.student_import') }}" class="btn">Import from Excel</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

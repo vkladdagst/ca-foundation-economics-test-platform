@@ -1,0 +1,40 @@
+{% extends "teacher/_layout.html" %}
+{% set active = 'students' %}
+{% block title %}Students{% endblock %}
+{% block teacher_body %}
+<div class="page-header"><h1>Students</h1></div>
+
+<div class="card card-pad mb-16">
+  <form method="get" class="flex gap-12">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search by name or roll number" style="flex:1;">
+    <button class="btn btn-primary" type="submit">Search</button>
+  </form>
+</div>
+
+{% if q %}
+<div class="card">
+  {% if results %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Student</th><th>Roll No.</th><th>Test</th><th>Score</th><th>%</th><th>Submitted</th><th></th></tr></thead>
+      <tbody>
+        {% for s in results %}
+        <tr>
+          <td>{{ s.student_name }}</td>
+          <td>{{ s.roll_number or '—' }}</td>
+          <td>{{ s.test.title }}</td>
+          <td>{{ s.score }} / {{ s.max_score }}</td>
+          <td>{{ s.percentage }}%</td>
+          <td>{{ s.submitted_at | dt }}</td>
+          <td><a class="btn btn-sm" href="{{ url_for('teacher.student_detail', test_id=s.test_id, submission_id=s.id) }}">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><h3>No matching students</h3></div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

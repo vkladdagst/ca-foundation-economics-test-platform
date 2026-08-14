@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ test.title }}{% endblock %}
+{% block body %}
+<div class="student-shell">
+  <div class="student-topbar">
+    <div class="test-title">{{ test.title }}<small>{{ submission.student_name }}{% if submission.roll_number %} · {{ submission.roll_number }}{% endif %}</small></div>
+    {% if test.duration_minutes %}
+    <div class="timer" id="timer">--:--</div>
+    {% endif %}
+  </div>
+
+  <div class="attempt-layout">
+    <div class="questions-col">
+      {% if not test.questions_visible %}
+      <div class="banner banner-info">Answer using your printed question paper. Select A / B / C / D for each question below.</div>
+      {% endif %}
+
+      {% for q in questions %}
+      <div class="question-card" id="q-card-{{ q.q_number }}" data-qnum="{{ q.q_number }}">
+        <div class="qnum">Question {{ q.q_number }}{% if q.marks != 1 %} <span class="small muted">({{ q.marks }} mark{{ 's' if q.marks != 1 }}{% if q.negative_marks %}, -{{ q.negative_marks }} if wrong{% endif %})</span>{% endif %}</div>
+
+        {% if test.questions_visible and q.text %}
+        <div class="question-text">{{ q.text }}</div>
+        <div class="options-grid">
+          {% for letter in ['A','B','C','D'] %}
+          {% set opt_text = q.option_text(letter) %}
+          {% if opt_text %}
+          <div class="option-btn {{ 'selected' if answers.get(q.id) == letter }}" data-qid="{{ q.id }}" data-letter="{{ letter }}" onclick="selectAnswer(this)">
+            <span class="option-letter">{{ letter }}</span>
+            <span class="option-text">{{ opt_text }}</span>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="compact-answers">
+          {% for letter in ['A','B','C','D'] %}
+          <div class="option-btn {{ 'selected' if answers.get(q.id) == letter }}" data-qid="{{ q.id }}" data-letter="{{ letter }}" onclick="selectAnswer(this)">
+            <span class="option-letter">{{ letter }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="navigator">
+      <div class="card card-pad">
+        <h3>Question Navigator</h3>
+        <div class="grid" id="nav-grid">
+          {% for q in questions %}
+          <div class="nav-btn {{ 'answered' if answers.get(q.id) }}" id="nav-{{ q.q_number }}" onclick="scrollToQuestion({{ q.q_number }})">{{ q.q_number }}</div>
+          {% endfor %}
+        </div>
+        <div class="nav-legend">
+          <span><span class="dot grey"></span> Unanswered</span>
+          <span><span class="dot green"></span> Answered</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-bar">
+    <div class="inner">
+      <div class="progress-text" id="progress-text">0 of {{ questions|length }} answered</div>
+      <a href="{{ url_for('student.review', code=test.access_code) }}" class="btn btn-success btn-lg">Review &amp; Submit</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+window.STUDENT_ANSWER_URL = "{{ url_for('student.save_answer', code=test.access_code) }}";
+window.INITIAL_ANSWERED = {{ answers.values() | select() | list | length }};
+window.TOTAL_QUESTIONS = {{ questions|length }};
+window.DURATION_MINUTES = {{ test.duration_minutes or 0 }};
+window.ALLOW_ANSWER_CHANGE = {{ 'true' if test.allow_answer_change else 'false' }};
+window.STARTED_AT_ISO = "{{ submission.started_at.isoformat() }}Z";
+window.STRICT_TIMER = {{ 'true' if test.strict_timer else 'false' }};
+window.REVIEW_URL = "{{ url_for('student.review', code=test.access_code) }}";
+</script>
+<script src="{{ url_for('static', filename='js/student.js') }}"></script>
+{% endblock %}

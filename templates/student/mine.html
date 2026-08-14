@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}My Answers — {{ test.title }}{% endblock %}
+{% block body %}
+<div class="container-narrow" style="padding-top:40px; padding-bottom:60px; max-width:760px;">
+  <a href="{{ url_for('student_auth.portal') }}" class="small">← Back to My Tests</a>
+  <h1>{{ test.title }}</h1>
+
+  <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);">
+    <div class="stat-card"><div class="label">Score</div><div class="value">{{ submission.score }} / {{ submission.max_score }}</div></div>
+    <div class="stat-card"><div class="label">Percentage</div><div class="value">{{ submission.percentage }}%</div></div>
+    <div class="stat-card"><div class="label">Correct</div><div class="value" style="color:var(--success)">{{ submission.correct_count }}</div></div>
+    <div class="stat-card"><div class="label">Wrong / Unanswered</div><div class="value" style="color:var(--danger)">{{ submission.wrong_count }} / {{ submission.unanswered_count }}</div></div>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Q</th><th>Your Answer</th><th>Correct Answer</th><th>Status</th><th class="text-right">Marks</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.question.q_number }}</td>
+            <td>{{ row.selected or '—' }}</td>
+            <td>{{ row.question.correct_answer }}</td>
+            <td>
+              {% if row.selected is none %}
+                <span class="badge badge-unanswered">Unanswered</span>
+              {% elif row.is_correct %}
+                <span class="badge badge-correct">Correct</span>
+              {% else %}
+                <span class="badge badge-wrong">Wrong</span>
+              {% endif %}
+            </td>
+            <td class="text-right">{{ '%+.2f' % row.marks_awarded if row.selected is not none else '0' }}</td>
+          </tr>
+          {% if row.question.explanation and not row.is_correct %}
+          <tr><td></td><td colspan="4" class="small muted" style="white-space:normal;">{{ row.question.explanation }}</td></tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+instance/
+uploads/question_papers/*
+!uploads/question_papers/.gitkeep
+server.log
+.env
+.claude/

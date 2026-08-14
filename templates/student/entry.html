@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ test.title }}{% endblock %}
+{% block body %}
+<div class="entry-card">
+  <div class="card card-pad">
+    <h1 style="text-align:center;">{{ test.title }}</h1>
+    <p class="muted small" style="text-align:center;">{{ test.subject }}{% if test.test_number %} · {{ test.test_number }}{% endif %}</p>
+
+    {% if test.description %}
+    <div class="instructions-box">{{ test.description }}</div>
+    {% endif %}
+
+    <p class="small muted" style="text-align:center;">
+      {{ test.total_questions }} Questions · {{ test.max_marks }} Marks
+      {% if test.negative_marks_default %} · Negative marking applies{% endif %}
+      {% if test.duration_minutes %} · {{ test.duration_minutes }} minutes{% if test.strict_timer %} (strictly enforced){% endif %}{% endif %}
+    </p>
+
+    <hr class="divider">
+
+    <p class="small" style="text-align:center;">Logged in as <strong>{{ current_user.name }}</strong> ({{ current_user.roll_number }})</p>
+
+    <form method="post" action="{{ url_for('student.start', code=test.access_code) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-primary btn-block btn-lg">Start Test</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

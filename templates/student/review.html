@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Review — {{ test.title }}{% endblock %}
+{% block body %}
+<div class="entry-card">
+  <div class="card card-pad" style="text-align:center;">
+    <h1>Ready to submit?</h1>
+    <p class="mt-16" style="font-size:1.05rem;">
+      You have answered <strong>{{ answered }}</strong> out of <strong>{{ total }}</strong> questions.
+    </p>
+    {% if unanswered_numbers %}
+    <p class="muted small">
+      {{ unanswered_numbers|length }} question(s) unanswered: {{ unanswered_numbers | join(', ') }}
+    </p>
+    {% endif %}
+    <hr class="divider">
+    {% if expired %}
+    <p class="banner banner-warning">Time's up — your answers are locked. Submit now to record your score.</p>
+    <form method="post" action="{{ url_for('student.submit', code=test.access_code) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-success btn-lg">Submit Test</button>
+    </form>
+    {% elif not test.allow_skip and unanswered_numbers %}
+    <p class="banner banner-warning">This test requires all questions to be answered before submission.</p>
+    <a href="{{ url_for('student.attempt', code=test.access_code) }}" class="btn btn-lg">Go Back &amp; Answer Remaining</a>
+    {% else %}
+    <div class="btn-group" style="justify-content:center;">
+      <a href="{{ url_for('student.attempt', code=test.access_code) }}" class="btn btn-lg">Go Back</a>
+      <form method="post" action="{{ url_for('student.submit', code=test.access_code) }}" onsubmit="return confirm('Submit the test now? You will not be able to change your answers afterward.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-success btn-lg">Submit Test</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

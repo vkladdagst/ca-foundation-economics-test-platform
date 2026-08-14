@@ -1,0 +1,75 @@
+{% extends "teacher/_layout.html" %}
+{% set active = 'tests' %}
+{% block title %}{{ 'Edit Question' if question else 'Add Question' }}{% endblock %}
+{% block teacher_body %}
+<div class="page-header"><h1>{{ 'Edit Question' if question else 'Add Question' }} — {{ test.title }}</h1></div>
+
+<form method="post" class="card card-pad" style="max-width:760px;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Question Number *</label>
+      <input type="number" name="q_number" required value="{{ question.q_number if question else next_num }}">
+    </div>
+    <div class="form-group">
+      <label>Correct Answer *</label>
+      <select name="correct_answer" required>
+        {% for letter in ['A','B','C','D'] %}
+        <option value="{{ letter }}" {{ 'selected' if question and question.correct_answer==letter }}>{{ letter }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Question Text (optional — leave blank for printed-paper workflow)</label>
+    <textarea name="text" placeholder="e.g. Which of the following is a factor of production?">{{ question.text if question else '' }}</textarea>
+  </div>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Option A</label>
+      <input type="text" name="option_a" value="{{ question.option_a if question else '' }}">
+    </div>
+    <div class="form-group">
+      <label>Option B</label>
+      <input type="text" name="option_b" value="{{ question.option_b if question else '' }}">
+    </div>
+  </div>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Option C</label>
+      <input type="text" name="option_c" value="{{ question.option_c if question else '' }}">
+    </div>
+    <div class="form-group">
+      <label>Option D</label>
+      <input type="text" name="option_d" value="{{ question.option_d if question else '' }}">
+    </div>
+  </div>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Marks</label>
+      <input type="number" step="0.01" name="marks" value="{{ question.marks if question else test.marks_per_question_default }}">
+    </div>
+    <div class="form-group">
+      <label>Negative Marks (positive number)</label>
+      <input type="number" step="0.01" min="0" name="negative_marks" value="{{ question.negative_marks if question else test.negative_marks_default }}">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Explanation / Solution (optional)</label>
+    <textarea name="explanation">{{ question.explanation if question else '' }}</textarea>
+  </div>
+
+  <div class="btn-group">
+    <button type="submit" class="btn btn-primary">{{ 'Save Changes' if question else 'Add Question' }}</button>
+    {% if not question %}
+    <button type="submit" name="action" value="save_and_new" class="btn">Save &amp; Add Another</button>
+    {% endif %}
+    <a href="{{ url_for('teacher.questions', test_id=test.id) }}" class="btn btn-ghost">Cancel</a>
+  </div>
+</form>
+{% endblock %}

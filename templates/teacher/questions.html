@@ -1,0 +1,105 @@
+{% extends "teacher/_layout.html" %}
+{% set active = 'tests' %}
+{% block title %}Questions — {{ test.title }}{% endblock %}
+{% block teacher_body %}
+<div class="page-header">
+  <div class="row">
+    <div>
+      <h1>{{ test.title }}</h1>
+      <span class="badge badge-{{ test.status }}">{{ test.status }}</span>
+      <span class="small muted">{{ test.total_questions }} questions · {{ test.max_marks }} marks</span>
+    </div>
+    <div class="btn-group">
+      {% if test.status == 'draft' %}
+      <form method="post" action="{{ url_for('teacher.test_publish', test_id=test.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-success" type="submit">Publish Test</button>
+      </form>
+      {% elif test.status == 'active' %}
+      <form method="post" action="{{ url_for('teacher.test_unpublish', test_id=test.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn" type="submit">Unpublish</button>
+      </form>
+      <form method="post" action="{{ url_for('teacher.test_close', test_id=test.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-danger" type="submit">Close Test</button>
+      </form>
+      {% endif %}
+      <a href="{{ url_for('teacher.results', test_id=test.id) }}" class="btn">View Results</a>
+    </div>
+  </div>
+</div>
+
+{% if test.status == 'active' %}
+<div class="card card-pad mb-16 flex-between flex-wrap">
+  <div>
+    <div class="small muted mb-8">Student test link — share with your class</div>
+    <span class="code-pill" id="test-link">{{ request.url_root }}test/{{ test.access_code }}</span>
+    <span class="code-pill">Code: {{ test.access_code }}</span>
+  </div>
+  <button class="btn btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('test-link').innerText); this.innerText='Copied!'">Copy Link</button>
+</div>
+{% endif %}
+
+<div class="btn-group mb-16">
+  <a href="{{ url_for('teacher.question_new', test_id=test.id) }}" class="btn btn-primary">+ Add Question</a>
+  <a href="{{ url_for('teacher.question_import', test_id=test.id) }}" class="btn">Import from Excel</a>
+  <a href="{{ url_for('teacher.question_export', test_id=test.id) }}" class="btn">Export Questions</a>
+  <a href="{{ url_for('teacher.answerkey_export', test_id=test.id) }}" class="btn">Export Answer Key</a>
+</div>
+
+<div class="card card-pad mb-16">
+  <h3>Question Paper (optional)</h3>
+  {% if test.question_paper_path %}
+    <p class="small">Uploaded: <a href="{{ url_for('teacher.view_paper', test_id=test.id) }}" target="_blank">{{ test.question_paper_original_name }}</a></p>
+  {% else %}
+    <p class="small muted">Upload the printed question paper (PDF/image) for your records — optional.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('teacher.upload_paper', test_id=test.id) }}" enctype="multipart/form-data" class="flex gap-8">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="file" name="paper" accept=".pdf,.png,.jpg,.jpeg">
+    <button class="btn btn-sm" type="submit">Upload</button>
+  </form>
+</div>
+
+<div class="card">
+  {% if questions %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Question</th><th>Correct</th><th>Marks</th><th>Neg.</th><th></th></tr></thead>
+      <tbody>
+        {% for q in questions %}
+        <tr>
+          <td>{{ q.q_number }}</td>
+          <td style="white-space:normal; max-width:420px;">{{ q.text or '(no text — printed paper)' }}</td>
+          <td><span class="badge badge-correct">{{ q.correct_answer }}</span></td>
+          <td>{{ q.marks }}</td>
+          <td>{{ q.negative_marks }}</td>
+          <td>
+            <div class="btn-group">
+              <form method="post" action="{{ url_for('teacher.question_move', test_id=test.id, qid=q.id, direction='up') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm" title="Move up">↑</button></form>
+              <form method="post" action="{{ url_for('teacher.question_move', test_id=test.id, qid=q.id, direction='down') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm" title="Move down">↓</button></form>
+              <a class="btn btn-sm" href="{{ url_for('teacher.question_edit', test_id=test.id, qid=q.id) }}">Edit</a>
+              <form method="post" action="{{ url_for('teacher.question_delete', test_id=test.id, qid=q.id) }}" onsubmit="return confirm('Delete question {{ q.q_number }}?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <h3>No questions yet</h3>
+    <p>Add questions manually or import them from an Excel file.</p>
+    <div class="btn-group" style="justify-content:center;">
+      <a href="{{ url_for('teacher.question_new', test_id=test.id) }}" class="btn btn-primary">+ Add Question</a>
+      <a href="{{ url_for('teacher.question_import', test_id=test.id) }}" class="btn">Import from Excel</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
