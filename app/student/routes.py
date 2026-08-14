@@ -10,6 +10,7 @@ from flask_login import current_user
 from app.decorators import student_required
 from app.extensions import db
 from app.models import Test, Question, Submission, Response
+from app.utils import mail
 from app.utils.grading import grade_submission
 
 student_bp = Blueprint("student", __name__, template_folder="../../templates/student")
@@ -202,6 +203,19 @@ def submit(code):
     db.session.commit()
 
     grade_submission(submission)
+
+    if mail.mail_configured() and test.teacher.email:
+        mail.send_email(
+            test.teacher.email,
+            f"New submission: {test.title} — {current_user.name}",
+            (
+                f"{current_user.name} ({current_user.roll_number}) just submitted {test.title}.\n\n"
+                f"Score: {submission.score} / {submission.max_score} ({submission.percentage}%)\n"
+                f"Correct: {submission.correct_count}, Wrong: {submission.wrong_count}, "
+                f"Unanswered: {submission.unanswered_count}\n\n"
+                f"View full results in your dashboard."
+            ),
+        )
 
     return redirect(url_for("student.success", code=code, ref=submission.reference_number))
 

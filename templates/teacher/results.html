@@ -13,6 +13,10 @@
       <a href="{{ url_for('teacher.analytics', test_id=test.id) }}" class="btn">Question Analytics</a>
       <a href="{{ url_for('teacher.results_export', test_id=test.id) }}" class="btn">Export Results (Excel)</a>
       <a href="{{ url_for('teacher.results_export_detailed', test_id=test.id) }}" class="btn">Export Detailed Responses</a>
+      <form method="post" action="{{ url_for('teacher.remind_non_attempters', test_id=test.id) }}" onsubmit="return confirm('Email everyone in your roster who has not yet submitted this test?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn" type="submit">Email Reminder to Non-Attempters</button>
+      </form>
       <form method="post" action="{{ url_for('teacher.recalculate', test_id=test.id) }}" onsubmit="return confirm('Re-grade all submissions against the current answer key?');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-danger" type="submit">Recalculate Results</button>

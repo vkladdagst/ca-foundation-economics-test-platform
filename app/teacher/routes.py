@@ -11,7 +11,7 @@ from werkzeug.utils import secure_filename
 from app.decorators import teacher_required
 from app.extensions import db
 from app.models import Test, Question, Submission, Response, Student
-from app.utils import excel_io
+from app.utils import excel_io, mail
 from app.utils.grading import test_statistics, question_statistics, compute_ranks, recalculate_test
 
 teacher_bp = Blueprint("teacher", __name__, template_folder="../../templates/teacher")
@@ -185,7 +185,26 @@ def test_publish(test_id):
         return redirect(url_for("teacher.questions", test_id=test.id))
     test.status = "active"
     db.session.commit()
-    flash("Test published. Share the link/code with students.", "success")
+
+    if mail.mail_configured():
+        link = url_for("student.entry", code=test.access_code, _external=True)
+        students = [(s.email, s.name) for s in current_user.students]
+
+        def body(name):
+            return (
+                f"Hi {name},\n\n"
+                f"A new test has been published: {test.title}\n"
+                f"{test.total_questions} questions, {test.max_marks} marks"
+                f"{' (negative marking applies)' if test.negative_marks_default else ''}.\n\n"
+                f"Log in and start here: {link}\n\n"
+                f"— {current_user.name}"
+            )
+
+        sent, skipped = mail.send_bulk(students, f"New test published: {test.title}", body)
+        flash(f"Test published. Notified {sent} student(s) by email.", "success")
+    else:
+        flash("Test published. Share the link/code with students.", "success")
+
     return redirect(url_for("teacher.tests_list"))
 
 
@@ -514,6 +533,34 @@ def analytics(test_id):
     test = get_owned_test(test_id)
     stats = question_statistics(test)
     return render_template("teacher/analytics.html", test=test, stats=stats)
+
+
+@teacher_bp.route("/tests/<int:test_id>/remind", methods=["POST"])
+@teacher_required
+def remind_non_attempters(test_id):
+    test = get_owned_test(test_id)
+
+    if not mail.mail_configured():
+        flash("Email is not configured yet — see .env.example (SMTP_* settings).", "error")
+        return redirect(url_for("teacher.results", test_id=test.id))
+
+    attempted_ids = {s.student_id for s in test.submissions.filter_by(status="submitted") if s.student_id}
+    non_attempters = [s for s in current_user.students if s.id not in attempted_ids]
+
+    link = url_for("student.entry", code=test.access_code, _external=True)
+
+    def body(name):
+        return (
+            f"Hi {name},\n\n"
+            f"This is a reminder that you haven't yet attempted: {test.title}\n\n"
+            f"Log in and start here: {link}\n\n"
+            f"— {current_user.name}"
+        )
+
+    recipients = [(s.email, s.name) for s in non_attempters]
+    sent, skipped = mail.send_bulk(recipients, f"Reminder: {test.title}", body)
+    flash(f"Reminder sent to {sent} student(s) ({len(non_attempters)} had not attempted; {skipped} had no email on file or failed to send).", "success")
+    return redirect(url_for("teacher.results", test_id=test.id))
 
 
 # ------------------------------------------------------------- student roster
