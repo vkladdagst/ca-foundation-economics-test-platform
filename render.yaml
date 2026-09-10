@@ -22,25 +22,27 @@ services:
           name: econ-test-db
           property: connectionString
 
-      # --- Web Push (public values; private key is entered in the dashboard) ---
+      # --- Web Push ---
+      # Public values come from the blueprint; the private key is a secret
+      # you add once by hand in the dashboard (Environment tab). sync:false
+      # means later blueprint syncs leave your hand-entered value alone.
       - key: VAPID_PUBLIC_KEY
         value: BH8BxYUIKguvuGWmU9oqAI5HTHWu89p1ag7AfF6b4yKoXp9adx9FzIbmshup61_tkVWSAhX_3NfApZDbkoMWfOs
       - key: VAPID_SUBJECT
         value: mailto:smacaoutreach@gmail.com
       - key: VAPID_PRIVATE_KEY
-        sync: false   # secret — Render will prompt you for this value
+        sync: false
 
-      # --- Email / SMTP ---
-      # Added in a later step, once the Gmail App Password is ready.
-      # - key: SMTP_HOST
-      #   value: smtp.gmail.com
-      # - key: SMTP_PORT
-      #   value: "587"
-      # - key: SMTP_USE_TLS
-      #   value: "true"
-      # - key: SMTP_USER
-      #   value: smacaoutreach@gmail.com
-      # - key: SMTP_FROM
-      #   value: smacaoutreach@gmail.com
-      # - key: SMTP_PASSWORD
-      #   sync: false
+      # --- Email / SMTP (Gmail) ---
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USE_TLS
+        value: "true"
+      - key: SMTP_USER
+        value: smacaoutreach@gmail.com
+      - key: SMTP_FROM
+        value: smacaoutreach@gmail.com
+      - key: SMTP_PASSWORD
+        sync: false   # your 16-char Gmail App Password — add by hand in the dashboard
