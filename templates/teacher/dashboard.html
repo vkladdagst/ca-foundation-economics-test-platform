@@ -9,6 +9,13 @@
   </div>
 </div>
 
+{% if vapid_public_key %}
+<div class="card card-pad mb-16 flex-between flex-wrap gap-8">
+  <span class="small muted">Get a notification on this device whenever a student submits a test.</span>
+  <button class="btn btn-sm" data-push-button data-vapid-key="{{ vapid_public_key }}">🔔 Enable notifications</button>
+</div>
+{% endif %}
+
 <div class="stat-grid">
   <div class="stat-card"><div class="label">Total Tests</div><div class="value">{{ total_tests }}</div></div>
   <div class="stat-card"><div class="label">Total Students</div><div class="value">{{ total_students }}</div></div>
@@ -46,4 +53,7 @@
   </div>
   {% endif %}
 </div>
+{% endblock %}
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/push.js') }}"></script>
 {% endblock %}

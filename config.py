@@ -1,6 +1,12 @@
 import os
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # load a local .env if present; a no-op in production
+except ImportError:
+    pass
+
 BASE_DIR = Path(__file__).resolve().parent
 
 
@@ -26,3 +32,8 @@ class Config:
     ALLOWED_PAPER_EXTENSIONS = {"pdf", "png", "jpg", "jpeg"}
     ALLOWED_IMPORT_EXTENSIONS = {"xlsx", "xls", "csv"}
     WTF_CSRF_TIME_LIMIT = None
+
+    # Web Push (optional). Unset = push disabled, app works normally.
+    VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+    VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+    VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:admin@example.com")

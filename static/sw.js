@@ -8,7 +8,7 @@
  *
  * Bump CACHE_VERSION on any change to force clients to refresh the shell.
  */
-const CACHE_VERSION = "econ-tests-v1";
+const CACHE_VERSION = "econ-tests-v2";
 const PRECACHE = [
   "/static/css/style.css",
   "/static/js/student.js",
@@ -61,4 +61,35 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   // Anything else: default network behaviour.
+});
+
+// ---- Web Push ----
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    data = { title: "Econ Tests", body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "Econ Tests";
+  const options = {
+    body: data.body || "",
+    icon: "/static/icons/icon-192.png",
+    badge: "/static/icons/icon-192.png",
+    data: { url: data.url || "/" },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      for (const w of wins) {
+        if (w.url.indexOf(target) !== -1 && "focus" in w) return w.focus();
+      }
+      return clients.openWindow(target);
+    })
+  );
 });

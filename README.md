@@ -220,23 +220,49 @@ and still finalized the score from what had been answered.
 All exports are standard `.xlsx` (openpyxl), opening cleanly in both
 Microsoft Excel and Google Sheets.
 
-## 10. Email notifications (optional)
+## 10. Notifications (both optional)
 
-Unset `SMTP_HOST` and the app works exactly as before — nothing breaks,
-notification buttons just tell you email isn't configured instead of
-sending. Set it up (see `.env.example` — any SMTP provider works, Gmail
-example included) to get:
+Two independent channels. Either, both, or neither can be on — with neither
+configured the app runs exactly as before and the notification buttons
+simply don't appear.
+
+### Email — set the `SMTP_*` env vars
+
+See `.env.example` (any SMTP provider works; a Gmail example is included —
+Gmail needs an **App Password**, not your normal password). Once set:
 
 - **New test published** → every roster student with an email on file is
-  notified automatically.
-- **Student submits** → the teacher gets an email with the score, in
-  addition to the dashboard updating live on next page load.
-- **Email Reminder to Non-Attempters** → one click from the Results page
-  to nudge everyone in the roster who hasn't submitted yet.
+  emailed automatically.
+- **Student submits** → the teacher gets an email with the score.
+- **Reminder to non-attempters** → one click from the Results page.
+- **Teacher → Settings → "Send a test email"** lets you verify the setup
+  without publishing anything.
 
-Sending is synchronous (fine at small-institute volume — tens to low
-hundreds of students) and never crashes a request if SMTP fails; failures
-are logged and reported as a skipped count, not an error page.
+Sending is synchronous (fine at small-institute volume) and never crashes
+a request if SMTP fails — failures are logged and reported as a skipped
+count.
+
+### Web Push — set the `VAPID_*` env vars
+
+Real push notifications to a phone or desktop, through the installed PWA
+(section 13a). Generate a key pair once:
+
+```bash
+python -c "import base64;from cryptography.hazmat.primitives.asymmetric import ec;from cryptography.hazmat.primitives import serialization as s;k=ec.generate_private_key(ec.SECP256R1());print('VAPID_PRIVATE_KEY=',base64.urlsafe_b64encode(k.private_bytes(s.Encoding.DER,s.PrivateFormat.PKCS8,s.NoEncryption())).rstrip(b'=').decode());print('VAPID_PUBLIC_KEY=',base64.urlsafe_b64encode(k.public_key().public_bytes(s.Encoding.X962,s.PublicFormat.UncompressedPoint)).rstrip(b'=').decode())"
+```
+
+Set those two values plus `VAPID_SUBJECT=mailto:you@institute.com` in the
+environment. Then:
+
+- Students get an **"Enable notifications"** button on their portal →
+  they're pushed when a new test is published (and on reminders).
+- The teacher gets one on the **Dashboard** and **Settings** page → pushed
+  when a student submits.
+- Dead subscriptions (uninstalled app, revoked permission) are pruned
+  automatically on the next send.
+
+**iOS note:** web push only works after the site is added to the Home
+Screen (Apple's rule). Android works in-browser and installed.
 
 ## 11. Security notes
 
@@ -312,6 +338,18 @@ Render** — its disk isn't guaranteed to persist across redeploys, which
 would silently lose submitted results. Postgres, as set up above, persists
 properly.
 
+## 13a. Installable app (PWA)
+
+The site is a Progressive Web App — no app store, no separate codebase.
+On a phone: open it in Chrome (Android) or Safari (iPhone) and use the
+browser menu → **Add to Home Screen**. It then has its own icon and opens
+fullscreen. `start_url` is `/`, which routes each user to their own
+dashboard/portal on launch. A small service worker caches static assets
+(cache-first) and shows an offline page for navigations when the network
+is down; it never caches dynamic pages, so there's no stale-content or
+stale-CSRF risk. Web push (section 10) is delivered through this installed
+app.
+
 ## 13. Custom link / domain
 
 Once deployed, your app already has a stable link
@@ -327,24 +365,29 @@ the Render subdomain works fine without it.
 
 ```
 app/
-  __init__.py           # app factory
-  models.py              # Teacher, Student, Test, Question, Submission, Response
+  __init__.py           # app factory + PWA routes (/manifest.webmanifest, /sw.js, /offline)
+  models.py              # Teacher, Student, Test, Question, Submission, Response, PushSubscription
   auth.py                 # teacher login/logout + /setup bootstrap
   student_auth.py        # student login/logout/portal
+  push_routes.py         # /push/subscribe, /push/unsubscribe
   decorators.py           # @teacher_required / @student_required
-  teacher/routes.py     # dashboard, test/question/roster CRUD, results, exports
+  teacher/routes.py     # dashboard, test/question/roster CRUD, results, exports, settings
   student/routes.py     # login-gated test-taking flow
   utils/
     grading.py           # server-side evaluation engine
     excel_io.py          # import/export helpers (openpyxl)
     mail.py               # SMTP notification helper
+    push.py               # Web Push (VAPID) notification helper
 templates/                # Jinja2 templates (teacher/, student/, auth/)
-static/                    # CSS + vanilla JS (student answer-sheet interactivity)
+static/
+  css/ js/                # styles + vanilla JS (answer sheet, push subscribe)
+  sw.js manifest.webmanifest icons/   # PWA
 seed.py                     # demo data generator
 run.py                      # local dev entry point
 serve.py                    # local production-mode entry point (waitress)
 Procfile                    # `gunicorn run:app` — used by Render/Heroku-style hosts
 runtime.txt                 # pins Python 3.12 for the deploy target
+render.yaml                 # Render Blueprint (web service + database)
 ```
 
 ## 15. What was tested

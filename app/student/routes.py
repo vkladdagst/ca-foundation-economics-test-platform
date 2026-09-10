@@ -10,7 +10,7 @@ from flask_login import current_user
 from app.decorators import student_required
 from app.extensions import db
 from app.models import Test, Question, Submission, Response
-from app.utils import mail
+from app.utils import mail, push
 from app.utils.grading import grade_submission
 
 student_bp = Blueprint("student", __name__, template_folder="../../templates/student")
@@ -216,6 +216,12 @@ def submit(code):
                 f"View full results in your dashboard."
             ),
         )
+
+    push.notify_teacher(
+        test.teacher, "New submission",
+        f"{current_user.name} — {submission.score}/{submission.max_score} on {test.title}",
+        url_for("teacher.student_detail", test_id=test.id, submission_id=submission.id, _external=True),
+    )
 
     return redirect(url_for("student.success", code=code, ref=submission.reference_number))
 

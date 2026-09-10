@@ -38,11 +38,17 @@ def create_app(config_class=Config):
     from app.student_auth import student_auth_bp
     from app.teacher.routes import teacher_bp
     from app.student.routes import student_bp
+    from app.push_routes import push_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(student_auth_bp)
     app.register_blueprint(teacher_bp, url_prefix="/teacher")
     app.register_blueprint(student_bp, url_prefix="/test")
+    app.register_blueprint(push_bp)
+
+    @app.context_processor
+    def inject_push_config():
+        return {"vapid_public_key": app.config.get("VAPID_PUBLIC_KEY", "")}
 
     @app.route("/")
     def index():

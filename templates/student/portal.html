@@ -10,6 +10,13 @@
     <a href="{{ url_for('student_auth.logout') }}" class="btn btn-sm">Log out</a>
   </div>
 
+  {% if vapid_public_key %}
+  <div class="card card-pad mb-24">
+    <p class="small muted mb-8">Get a phone notification when your teacher publishes a new test.</p>
+    <button class="btn btn-sm" data-push-button data-vapid-key="{{ vapid_public_key }}">🔔 Enable notifications</button>
+  </div>
+  {% endif %}
+
   {% if tests %}
   <div class="card">
     <div class="table-wrap">
@@ -47,4 +54,7 @@
   <div class="empty-state"><h3>No tests available yet</h3><p>Your teacher hasn't published any tests.</p></div>
   {% endif %}
 </div>
+{% endblock %}
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/push.js') }}"></script>
 {% endblock %}

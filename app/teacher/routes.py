@@ -10,8 +10,8 @@ from werkzeug.utils import secure_filename
 
 from app.decorators import teacher_required
 from app.extensions import db
-from app.models import Test, Question, Submission, Response, Student
-from app.utils import excel_io, mail
+from app.models import Test, Question, Submission, Response, Student, PushSubscription
+from app.utils import excel_io, mail, push
 from app.utils.grading import test_statistics, question_statistics, compute_ranks, recalculate_test
 
 teacher_bp = Blueprint("teacher", __name__, template_folder="../../templates/teacher")
@@ -186,8 +186,10 @@ def test_publish(test_id):
     test.status = "active"
     db.session.commit()
 
+    link = url_for("student.entry", code=test.access_code, _external=True)
+    notes = []
+
     if mail.mail_configured():
-        link = url_for("student.entry", code=test.access_code, _external=True)
         students = [(s.email, s.name) for s in current_user.students]
 
         def body(name):
@@ -200,11 +202,18 @@ def test_publish(test_id):
                 f"— {current_user.name}"
             )
 
-        sent, skipped = mail.send_bulk(students, f"New test published: {test.title}", body)
-        flash(f"Test published. Notified {sent} student(s) by email.", "success")
-    else:
-        flash("Test published. Share the link/code with students.", "success")
+        sent, _ = mail.send_bulk(students, f"New test published: {test.title}", body)
+        notes.append(f"emailed {sent}")
 
+    pushed = push.notify_students_of_teacher(
+        current_user, "New test published",
+        f"{test.title} — {test.total_questions} questions", link,
+    )
+    if pushed:
+        notes.append(f"push to {pushed}")
+
+    suffix = f" Notified students ({', '.join(notes)})." if notes else " Share the link/code with students."
+    flash("Test published." + suffix, "success")
     return redirect(url_for("teacher.tests_list"))
 
 
@@ -540,26 +549,36 @@ def analytics(test_id):
 def remind_non_attempters(test_id):
     test = get_owned_test(test_id)
 
-    if not mail.mail_configured():
-        flash("Email is not configured yet — see .env.example (SMTP_* settings).", "error")
+    if not mail.mail_configured() and not push.push_configured():
+        flash("Neither email nor push notifications are configured yet — see Settings.", "error")
         return redirect(url_for("teacher.results", test_id=test.id))
 
     attempted_ids = {s.student_id for s in test.submissions.filter_by(status="submitted") if s.student_id}
     non_attempters = [s for s in current_user.students if s.id not in attempted_ids]
 
     link = url_for("student.entry", code=test.access_code, _external=True)
+    notes = []
 
-    def body(name):
-        return (
-            f"Hi {name},\n\n"
-            f"This is a reminder that you haven't yet attempted: {test.title}\n\n"
-            f"Log in and start here: {link}\n\n"
-            f"— {current_user.name}"
-        )
+    if mail.mail_configured():
+        def body(name):
+            return (
+                f"Hi {name},\n\n"
+                f"This is a reminder that you haven't yet attempted: {test.title}\n\n"
+                f"Log in and start here: {link}\n\n"
+                f"— {current_user.name}"
+            )
 
-    recipients = [(s.email, s.name) for s in non_attempters]
-    sent, skipped = mail.send_bulk(recipients, f"Reminder: {test.title}", body)
-    flash(f"Reminder sent to {sent} student(s) ({len(non_attempters)} had not attempted; {skipped} had no email on file or failed to send).", "success")
+        recipients = [(s.email, s.name) for s in non_attempters]
+        sent, skipped = mail.send_bulk(recipients, f"Reminder: {test.title}", body)
+        notes.append(f"emailed {sent} (of {len(non_attempters)}; {skipped} had no email / failed)")
+
+    pushed = push.notify_specific_students(
+        non_attempters, "Test reminder", f"You haven't attempted: {test.title}", link,
+    )
+    if pushed:
+        notes.append(f"push to {pushed}")
+
+    flash("Reminder sent — " + "; ".join(notes) + ".", "success")
     return redirect(url_for("teacher.results", test_id=test.id))
 
 
@@ -721,3 +740,41 @@ def roster_credentials_export():
         buf, as_attachment=True, download_name="student_logins.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+# ------------------------------------------------------------------ settings
+
+@teacher_bp.route("/settings")
+@teacher_required
+def settings():
+    device_count = PushSubscription.query.filter_by(
+        owner_type="teacher", owner_id=current_user.id
+    ).count()
+    return render_template(
+        "teacher/settings.html",
+        email_configured=mail.mail_configured(),
+        push_configured=push.push_configured(),
+        push_device_count=device_count,
+    )
+
+
+@teacher_bp.route("/settings/test-email", methods=["POST"])
+@teacher_required
+def settings_test_email():
+    if not mail.mail_configured():
+        flash("Email is not configured. Set the SMTP_* environment variables first.", "error")
+        return redirect(url_for("teacher.settings"))
+    if not current_user.email:
+        flash("Your account has no email address on file.", "error")
+        return redirect(url_for("teacher.settings"))
+
+    ok = mail.send_email(
+        current_user.email,
+        "Test email — CA Foundation Economics Test Platform",
+        "This is a test email. If you received it, email notifications are working correctly.",
+    )
+    if ok:
+        flash(f"Test email sent to {current_user.email}. Check your inbox (and spam folder).", "success")
+    else:
+        flash("Could not send the test email — check the SMTP settings and the server logs.", "error")
+    return redirect(url_for("teacher.settings"))

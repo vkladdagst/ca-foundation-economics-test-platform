@@ -1,0 +1,44 @@
+{% extends "teacher/_layout.html" %}
+{% set active = 'settings' %}
+{% block title %}Settings{% endblock %}
+{% block teacher_body %}
+<div class="page-header"><h1>Settings</h1></div>
+
+<div class="card card-pad mb-16" style="max-width:640px;">
+  <h3>Email notifications</h3>
+  {% if email_configured %}
+    <p class="small"><span class="badge badge-active">Configured</span> Emails are sent for new tests, submissions, and reminders.</p>
+    <form method="post" action="{{ url_for('teacher.settings_test_email') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm" type="submit">Send a test email to {{ current_user.email }}</button>
+    </form>
+  {% else %}
+    <p class="small"><span class="badge badge-draft">Not configured</span></p>
+    <p class="small muted">Set these environment variables on your host (Render → your service → Environment), then redeploy:</p>
+    <pre class="small" style="background:var(--grey-50);padding:10px;border-radius:6px;overflow-x:auto;">SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-address@gmail.com
+SMTP_PASSWORD=your-16-char-app-password
+SMTP_FROM=your-address@gmail.com
+SMTP_USE_TLS=true</pre>
+    <p class="small muted">For Gmail you must use an <strong>App Password</strong> (Google Account → Security → 2-Step Verification → App passwords), not your normal password.</p>
+  {% endif %}
+</div>
+
+<div class="card card-pad" style="max-width:640px;">
+  <h3>Push notifications</h3>
+  {% if push_configured %}
+    <p class="small"><span class="badge badge-active">Configured</span> Students can enable "new test" alerts from their portal; you can enable "new submission" alerts from your Dashboard.</p>
+    <p class="small muted">This device: {{ push_device_count }} notification subscription(s) registered for your account.</p>
+    {% if vapid_public_key %}
+    <button class="btn btn-sm" data-push-button data-vapid-key="{{ vapid_public_key }}">🔔 Enable notifications on this device</button>
+    {% endif %}
+  {% else %}
+    <p class="small"><span class="badge badge-draft">Not configured</span></p>
+    <p class="small muted">Set <code>VAPID_PUBLIC_KEY</code>, <code>VAPID_PRIVATE_KEY</code>, and <code>VAPID_SUBJECT</code> environment variables on your host, then redeploy. Generate a key pair with the values provided during setup.</p>
+  {% endif %}
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/push.js') }}"></script>
+{% endblock %}

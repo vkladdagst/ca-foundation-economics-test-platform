@@ -209,3 +209,22 @@ class Response(db.Model):
     __table_args__ = (
         db.UniqueConstraint("submission_id", "question_id", name="uq_submission_question"),
     )
+
+
+class PushSubscription(db.Model):
+    """A single browser/device's Web Push subscription. Spans both user types,
+    so we store owner_type ('teacher'|'student') + owner_id rather than a FK."""
+    __tablename__ = "push_subscriptions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    owner_type = db.Column(db.String(10), nullable=False, index=True)
+    owner_id = db.Column(db.Integer, nullable=False, index=True)
+
+    endpoint = db.Column(db.Text, nullable=False, unique=True)
+    p256dh = db.Column(db.Text, nullable=False)
+    auth = db.Column(db.Text, nullable=False)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def as_dict(self):
+        return {"endpoint": self.endpoint, "keys": {"p256dh": self.p256dh, "auth": self.auth}}
