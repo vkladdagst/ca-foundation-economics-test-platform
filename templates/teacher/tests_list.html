@@ -53,6 +53,11 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-sm" type="submit">Duplicate</button>
               </form>
+              <form method="post" action="{{ url_for('teacher.test_delete', test_id=t.id) }}" style="display:inline;"
+                    onsubmit="return confirm('Permanently delete &quot;{{ t.title }}&quot;?\n\nThis also deletes its {{ t.total_questions }} question(s) and {{ t.submitted_count }} student submission(s). This cannot be undone.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+              </form>
             </div>
           </td>
         </tr>

@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, render_template
+from flask import Flask, Response, render_template, send_from_directory
 
 from config import Config
 from app.extensions import db, login_manager, csrf
@@ -47,10 +47,34 @@ def create_app(config_class=Config):
     @app.route("/")
     def index():
         from flask_login import current_user
+        from flask import redirect, url_for
         if current_user.is_authenticated:
-            from flask import redirect, url_for
+            if isinstance(current_user, Student):
+                return redirect(url_for("student_auth.portal"))
             return redirect(url_for("teacher.dashboard"))
         return render_template("index.html")
+
+    # ---- Progressive Web App (installable "Add to Home Screen") ----
+
+    @app.route("/manifest.webmanifest")
+    def manifest():
+        resp = send_from_directory(app.static_folder, "manifest.webmanifest")
+        resp.headers["Content-Type"] = "application/manifest+json"
+        return resp
+
+    @app.route("/sw.js")
+    def service_worker():
+        with open(os.path.join(app.static_folder, "sw.js"), "r", encoding="utf-8") as f:
+            body = f.read()
+        resp = Response(body, mimetype="application/javascript")
+        # Served from root so the worker can control the whole origin.
+        resp.headers["Service-Worker-Allowed"] = "/"
+        resp.headers["Cache-Control"] = "no-cache"
+        return resp
+
+    @app.route("/offline")
+    def offline():
+        return render_template("offline.html")
 
     @app.errorhandler(404)
     def not_found(e):

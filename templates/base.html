@@ -2,10 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>{% block title %}CA Foundation Economics — Test Platform{% endblock %}</title>
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1e3a5f">
+<link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Econ Tests">
 {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -21,6 +30,13 @@
 setTimeout(function(){
   document.querySelectorAll('#flash-wrap .alert').forEach(function(el){ el.style.display='none'; });
 }, 5000);
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js').catch(function (e) {
+      console.warn('Service worker registration failed:', e);
+    });
+  });
+}
 </script>
 {% block extra_scripts %}{% endblock %}
 </body>
