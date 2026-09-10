@@ -30,16 +30,17 @@ services:
       - key: VAPID_PRIVATE_KEY
         sync: false   # secret — Render will prompt you for this value
 
-      # --- Email / SMTP (Gmail) ---
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USE_TLS
-        value: "true"
-      - key: SMTP_USER
-        value: smacaoutreach@gmail.com
-      - key: SMTP_FROM
-        value: smacaoutreach@gmail.com
-      - key: SMTP_PASSWORD
-        sync: false   # secret — your 16-char Gmail App Password
+      # --- Email / SMTP ---
+      # Added in a later step, once the Gmail App Password is ready.
+      # - key: SMTP_HOST
+      #   value: smtp.gmail.com
+      # - key: SMTP_PORT
+      #   value: "587"
+      # - key: SMTP_USE_TLS
+      #   value: "true"
+      # - key: SMTP_USER
+      #   value: smacaoutreach@gmail.com
+      # - key: SMTP_FROM
+      #   value: smacaoutreach@gmail.com
+      # - key: SMTP_PASSWORD
+      #   sync: false
