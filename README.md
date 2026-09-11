@@ -201,6 +201,28 @@ Verified in this build by rewinding a live submission's start time and
 confirming the server correctly refused new answers, redirected to review,
 and still finalized the score from what had been answered.
 
+## 8a. Multiple teachers & batch-targeted tests
+
+Any teacher can add a colleague from **Colleagues → + Add Teacher**
+(name, email; a password is generated and shown once, same pattern as
+students). Each teacher gets their own dashboard and only ever sees and
+manages their own tests — a Maths teacher can't see or edit an Economics
+teacher's tests, and vice versa.
+
+What *is* shared: the **student roster**. It's institute-wide — every
+teacher sees the same student list, so one roll number + password gets a
+student into every subject they're eligible for, without a separate
+account per teacher. A student's portal lists tests from every teacher,
+labeled by the test's Subject field.
+
+To control who sees what, every test has an optional **Target Batches**
+setting (checkboxes drawn from whatever Batch values already exist in the
+roster). Leave all unchecked and the test is open to everyone, matching
+the original single-batch behavior. Check one or more and the test is
+scoped to only those batches — enforced both in what a student's portal
+shows *and* server-side on the test link itself (a shared link outside the
+intended batch is refused, not just hidden).
+
 ## 9. Excel import/export
 
 - **Question import template**: `Question No, Question, Option A–D, Correct

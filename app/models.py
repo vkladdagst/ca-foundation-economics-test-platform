@@ -1,3 +1,4 @@
+import json
 import secrets
 import string
 from datetime import datetime
@@ -22,7 +23,11 @@ class Teacher(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     tests = db.relationship("Test", backref="teacher", lazy="dynamic", cascade="all, delete-orphan")
-    students = db.relationship("Student", backref="teacher", lazy="dynamic", cascade="all, delete-orphan")
+    # No delete-orphan here: students are a shared, institute-wide roster.
+    # teacher_id only records who originally added a student — removing that
+    # teacher's own account must never take other teachers' shared students
+    # (or their results) down with it.
+    students = db.relationship("Student", backref="teacher", lazy="dynamic")
 
     def get_id(self):
         return f"teacher-{self.id}"
@@ -32,6 +37,10 @@ class Teacher(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    @staticmethod
+    def generate_temp_password():
+        return secrets.token_urlsafe(9)
 
 
 class Test(db.Model):
@@ -60,6 +69,10 @@ class Test(db.Model):
 
     status = db.Column(db.String(20), default="draft")  # draft | active | closed
     access_code = db.Column(db.String(20), unique=True, nullable=False, index=True, default=lambda: _gen_code(8))
+
+    # JSON list of batch names this test is restricted to, e.g. ["A","B"].
+    # Empty/None = visible and open to every batch (the default, backward-compatible).
+    target_batches_json = db.Column(db.Text)
 
     question_paper_path = db.Column(db.String(500))
     question_paper_original_name = db.Column(db.String(255))
@@ -92,14 +105,38 @@ class Test(db.Model):
         last = self.questions.order_by(Question.order_index.desc()).first()
         return (last.order_index + 1) if last else 1
 
+    @property
+    def target_batches(self):
+        """List of batch names this test is restricted to. Empty = all batches."""
+        if not self.target_batches_json:
+            return []
+        try:
+            return json.loads(self.target_batches_json)
+        except (TypeError, ValueError):
+            return []
+
+    @target_batches.setter
+    def target_batches(self, value):
+        self.target_batches_json = json.dumps(value) if value else None
+
+    def visible_to_batch(self, batch):
+        """Is this test open to a student in the given batch?"""
+        targets = self.target_batches
+        return not targets or (batch in targets)
+
 
 class Student(UserMixin, db.Model):
+    """The student roster is shared institute-wide across every teacher —
+    one login per real student, used to access every subject-teacher's
+    tests. `teacher_id` records who originally added the student (useful
+    for audit) but is no longer an access-control boundary; see
+    Test.target_batches for how visibility is actually scoped (by batch)."""
     __tablename__ = "students"
 
     id = db.Column(db.Integer, primary_key=True)
     teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), nullable=False)
 
-    roll_number = db.Column(db.String(100), nullable=False, index=True)
+    roll_number = db.Column(db.String(100), nullable=False, unique=True, index=True)
     name = db.Column(db.String(255), nullable=False)
     batch = db.Column(db.String(100))
     reg_number = db.Column(db.String(100))
@@ -110,10 +147,6 @@ class Student(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     submissions = db.relationship("Submission", backref="student", lazy="dynamic")
-
-    __table_args__ = (
-        db.UniqueConstraint("teacher_id", "roll_number", name="uq_teacher_roll_number"),
-    )
 
     def get_id(self):
         return f"student-{self.id}"

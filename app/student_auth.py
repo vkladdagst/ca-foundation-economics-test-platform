@@ -45,10 +45,12 @@ def logout():
 @student_auth_bp.route("/portal")
 @student_required
 def portal():
-    tests = Test.query.filter(
-        Test.teacher_id == current_user.teacher_id,
-        Test.status.in_(["active", "closed"]),
+    # Institute-wide: every subject-teacher's tests appear here, narrowed to
+    # whichever ones are open to this student's batch (or unrestricted).
+    all_tests = Test.query.filter(
+        Test.status.in_(["active", "closed"])
     ).order_by(Test.created_at.desc()).all()
+    tests = [t for t in all_tests if t.visible_to_batch(current_user.batch)]
 
     my_submissions = {
         s.test_id: s for s in current_user.submissions.filter_by(status="submitted")

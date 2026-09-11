@@ -91,6 +91,21 @@
     <div class="form-hint">Only applies if a Duration is set above. Without this, the on-screen timer is informational only.</div>
   </fieldset>
 
+  <fieldset>
+    <legend>Target Batches</legend>
+    {% if available_batches %}
+    <p class="small muted">Leave all unchecked to make this test visible to every student. Check one or more to restrict it to just those batches.</p>
+    {% for b in available_batches %}
+    <div class="checkbox-row">
+      <input type="checkbox" id="batch_{{ loop.index }}" name="target_batches" value="{{ b }}" {{ 'checked' if test and b in test.target_batches }}>
+      <label for="batch_{{ loop.index }}">Batch {{ b }}</label>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="small muted">No batches found yet — add students with a Batch value on the <a href="{{ url_for('teacher.roster') }}">Students</a> page to enable targeting. Until then, every test is visible to everyone.</p>
+    {% endif %}
+  </fieldset>
+
   <p class="small muted">Student identity is taken automatically from their login (roll number, name, batch) — managed on the <a href="{{ url_for('teacher.roster') }}">Students</a> page.</p>
 
   <div class="btn-group">

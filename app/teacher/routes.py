@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 
 from app.decorators import teacher_required
 from app.extensions import db
-from app.models import Test, Question, Submission, Response, Student, PushSubscription
+from app.models import Test, Question, Submission, Response, Student, PushSubscription, Teacher
 from app.utils import excel_io, mail, push
 from app.utils.grading import test_statistics, question_statistics, compute_ranks, recalculate_test
 
@@ -38,7 +38,7 @@ def get_owned_submission(test, submission_id):
 def dashboard():
     tests = current_user.tests.order_by(Test.created_at.desc())
     total_tests = tests.count()
-    total_students = current_user.students.count()
+    total_students = Student.query.count()  # shared institute-wide roster
     start_of_month = date.today().replace(day=1)
     tests_this_month = tests.filter(Test.created_at >= start_of_month).count()
     total_submissions = (
@@ -97,6 +97,12 @@ def _apply_test_form(test, form):
     test.one_attempt_only = form.get("one_attempt_only") == "on"
     test.strict_timer = form.get("strict_timer") == "on"
     test.allow_review = form.get("allow_review") == "on"
+    test.target_batches = form.getlist("target_batches")
+
+
+def _distinct_batches():
+    rows = db.session.query(Student.batch).filter(Student.batch.isnot(None), Student.batch != "").distinct()
+    return sorted({r[0] for r in rows})
 
 
 @teacher_bp.route("/tests/new", methods=["GET", "POST"])
@@ -107,13 +113,13 @@ def test_new():
         _apply_test_form(test, request.form)
         if not test.title:
             flash("Test title is required.", "error")
-            return render_template("teacher/test_form.html", test=None)
+            return render_template("teacher/test_form.html", test=None, available_batches=_distinct_batches())
         db.session.add(test)
         db.session.commit()
         flash("Test created. Now add your questions and answer key.", "success")
         return redirect(url_for("teacher.questions", test_id=test.id))
 
-    return render_template("teacher/test_form.html", test=None)
+    return render_template("teacher/test_form.html", test=None, available_batches=_distinct_batches())
 
 
 @teacher_bp.route("/tests/<int:test_id>/edit", methods=["GET", "POST"])
@@ -125,7 +131,7 @@ def test_edit(test_id):
         db.session.commit()
         flash("Test updated.", "success")
         return redirect(url_for("teacher.tests_list"))
-    return render_template("teacher/test_form.html", test=test)
+    return render_template("teacher/test_form.html", test=test, available_batches=_distinct_batches())
 
 
 @teacher_bp.route("/tests/<int:test_id>/duplicate", methods=["POST"])
@@ -148,6 +154,7 @@ def test_duplicate(test_id):
         one_attempt_only=original.one_attempt_only,
         strict_timer=original.strict_timer,
         allow_review=original.allow_review,
+        target_batches_json=original.target_batches_json,
         status="draft",
     )
     db.session.add(copy)
@@ -176,6 +183,15 @@ def test_delete(test_id):
     return redirect(url_for("teacher.tests_list"))
 
 
+def _students_for_test(test):
+    """The shared roster, narrowed to the test's target batches (all, if unrestricted)."""
+    query = Student.query
+    targets = test.target_batches
+    if targets:
+        query = query.filter(Student.batch.in_(targets))
+    return query.all()
+
+
 @teacher_bp.route("/tests/<int:test_id>/publish", methods=["POST"])
 @teacher_required
 def test_publish(test_id):
@@ -187,27 +203,28 @@ def test_publish(test_id):
     db.session.commit()
 
     link = url_for("student.entry", code=test.access_code, _external=True)
+    audience = _students_for_test(test)
     notes = []
 
     if mail.mail_configured():
-        students = [(s.email, s.name) for s in current_user.students]
+        recipients = [(s.email, s.name) for s in audience]
 
         def body(name):
             return (
                 f"Hi {name},\n\n"
-                f"A new test has been published: {test.title}\n"
+                f"A new test has been published: {test.title} ({test.subject})\n"
                 f"{test.total_questions} questions, {test.max_marks} marks"
                 f"{' (negative marking applies)' if test.negative_marks_default else ''}.\n\n"
                 f"Log in and start here: {link}\n\n"
                 f"— {current_user.name}"
             )
 
-        sent, _ = mail.send_bulk(students, f"New test published: {test.title}", body)
+        sent, _ = mail.send_bulk(recipients, f"New test published: {test.title}", body)
         notes.append(f"emailed {sent}")
 
-    pushed = push.notify_students_of_teacher(
-        current_user, "New test published",
-        f"{test.title} — {test.total_questions} questions", link,
+    pushed = push.notify_specific_students(
+        audience, "New test published",
+        f"{test.subject}: {test.title} — {test.total_questions} questions", link,
     )
     if pushed:
         notes.append(f"push to {pushed}")
@@ -554,7 +571,7 @@ def remind_non_attempters(test_id):
         return redirect(url_for("teacher.results", test_id=test.id))
 
     attempted_ids = {s.student_id for s in test.submissions.filter_by(status="submitted") if s.student_id}
-    non_attempters = [s for s in current_user.students if s.id not in attempted_ids]
+    non_attempters = [s for s in _students_for_test(test) if s.id not in attempted_ids]
 
     link = url_for("student.entry", code=test.access_code, _external=True)
     notes = []
@@ -583,19 +600,17 @@ def remind_non_attempters(test_id):
 
 
 # ------------------------------------------------------------- student roster
-
-def get_owned_student(sid):
-    student = Student.query.get_or_404(sid)
-    if student.teacher_id != current_user.id:
-        abort(403)
-    return student
-
+#
+# The roster is shared institute-wide: every teacher (subject) sees and can
+# manage the same students, so one student login works across every
+# subject-teacher's tests. `teacher_id` on Student only records who added
+# them; it is not an access boundary here.
 
 @teacher_bp.route("/students")
 @teacher_required
 def roster():
     q = request.args.get("q", "").strip()
-    query = current_user.students
+    query = Student.query
     if q:
         like = f"%{q}%"
         query = query.filter(db.or_(Student.name.ilike(like), Student.roll_number.ilike(like)))
@@ -618,9 +633,9 @@ def student_new():
             flash("Roll number and name are required.", "error")
             return render_template("teacher/student_form.html", student=None)
 
-        existing = Student.query.filter_by(teacher_id=current_user.id, roll_number=roll).first()
+        existing = Student.query.filter_by(roll_number=roll).first()
         if existing:
-            flash(f"A student with roll number '{roll}' already exists.", "error")
+            flash(f"A student with roll number '{roll}' already exists ({existing.name}) — they can already log in and see every subject's tests. No need to add them again.", "error")
             return render_template("teacher/student_form.html", student=None)
 
         password = Student.generate_pin()
@@ -642,7 +657,7 @@ def student_new():
 @teacher_bp.route("/students/<int:sid>/edit", methods=["GET", "POST"])
 @teacher_required
 def student_edit(sid):
-    student = get_owned_student(sid)
+    student = Student.query.get_or_404(sid)
     if request.method == "POST":
         student.name = request.form.get("name", "").strip()
         student.batch = request.form.get("batch", "").strip()
@@ -658,7 +673,7 @@ def student_edit(sid):
 @teacher_bp.route("/students/<int:sid>/reset-password", methods=["POST"])
 @teacher_required
 def student_reset_password(sid):
-    student = get_owned_student(sid)
+    student = Student.query.get_or_404(sid)
     password = Student.generate_pin()
     student.set_password(password)
     db.session.commit()
@@ -671,10 +686,10 @@ def student_reset_password(sid):
 @teacher_bp.route("/students/<int:sid>/delete", methods=["POST"])
 @teacher_required
 def student_delete(sid):
-    student = get_owned_student(sid)
+    student = Student.query.get_or_404(sid)
     db.session.delete(student)
     db.session.commit()
-    flash("Student removed from roster.", "success")
+    flash("Student removed from roster (for every subject).", "success")
     return redirect(url_for("teacher.roster"))
 
 
@@ -709,7 +724,7 @@ def student_import():
         created = []
         skipped = []
         for row in rows:
-            existing = Student.query.filter_by(teacher_id=current_user.id, roll_number=row["roll_number"]).first()
+            existing = Student.query.filter_by(roll_number=row["roll_number"]).first()
             if existing:
                 skipped.append(row["roll_number"])
                 continue
@@ -721,7 +736,7 @@ def student_import():
         db.session.commit()
 
         if skipped:
-            flash(f"Skipped {len(skipped)} roll number(s) already in the roster: {', '.join(skipped)}", "info")
+            flash(f"Skipped {len(skipped)} roll number(s) already in the shared roster: {', '.join(skipped)}", "info")
         if not created:
             flash("No new students were added.", "error")
             return redirect(url_for("teacher.roster"))
@@ -740,6 +755,54 @@ def roster_credentials_export():
         buf, as_attachment=True, download_name="student_logins.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+# --------------------------------------------------------------- colleagues
+#
+# Other subject-teachers (e.g. Maths alongside Economics). Each teacher only
+# ever sees and manages their own tests/dashboard; they share the student
+# roster above so one student login works across every subject.
+
+@teacher_bp.route("/colleagues")
+@teacher_required
+def colleagues():
+    teachers = Teacher.query.order_by(Teacher.name).all()
+    return render_template("teacher/colleagues.html", teachers=teachers)
+
+
+@teacher_bp.route("/colleagues/new", methods=["GET", "POST"])
+@teacher_required
+def colleague_new():
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip().lower()
+
+        if not name or not email:
+            flash("Name and email are required.", "error")
+            return render_template("teacher/colleague_form.html")
+
+        if Teacher.query.filter_by(email=email).first():
+            flash(f"A teacher account with email '{email}' already exists.", "error")
+            return render_template("teacher/colleague_form.html")
+
+        password = Teacher.generate_temp_password()
+        teacher = Teacher(name=name, email=email)
+        teacher.set_password(password)
+        db.session.add(teacher)
+        db.session.commit()
+        return render_template("teacher/colleague_credentials.html", teacher=teacher, password=password)
+
+    return render_template("teacher/colleague_form.html")
+
+
+@teacher_bp.route("/colleagues/<int:tid>/reset-password", methods=["POST"])
+@teacher_required
+def colleague_reset_password(tid):
+    teacher = Teacher.query.get_or_404(tid)
+    password = Teacher.generate_temp_password()
+    teacher.set_password(password)
+    db.session.commit()
+    return render_template("teacher/colleague_credentials.html", teacher=teacher, password=password)
 
 
 # ------------------------------------------------------------------ settings

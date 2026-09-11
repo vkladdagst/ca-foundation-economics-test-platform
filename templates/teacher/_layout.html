@@ -8,6 +8,7 @@
       <option value="{{ url_for('teacher.dashboard') }}">Dashboard</option>
       <option value="{{ url_for('teacher.tests_list') }}">Tests</option>
       <option value="{{ url_for('teacher.roster') }}">Students</option>
+      <option value="{{ url_for('teacher.colleagues') }}">Colleagues</option>
       <option value="{{ url_for('teacher.settings') }}">Settings</option>
       <option value="{{ url_for('auth.logout') }}">Logout</option>
     </select>
@@ -20,6 +21,7 @@
       <a href="{{ url_for('teacher.dashboard') }}" class="{{ 'active' if active=='dashboard' }}">📊 Dashboard</a>
       <a href="{{ url_for('teacher.tests_list') }}" class="{{ 'active' if active=='tests' }}">📝 Tests</a>
       <a href="{{ url_for('teacher.roster') }}" class="{{ 'active' if active=='students' }}">🎓 Students</a>
+      <a href="{{ url_for('teacher.colleagues') }}" class="{{ 'active' if active=='colleagues' }}">👥 Colleagues</a>
       <a href="{{ url_for('teacher.settings') }}" class="{{ 'active' if active=='settings' }}">⚙️ Settings</a>
     </nav>
     <div class="sidebar-footer">

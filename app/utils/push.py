@@ -72,17 +72,6 @@ def notify_teacher(teacher, title, body, url):
     return _send_to(subs, title, body, url)
 
 
-def notify_students_of_teacher(teacher, title, body, url):
-    student_ids = [s.id for s in teacher.students]
-    if not student_ids:
-        return 0
-    subs = PushSubscription.query.filter(
-        PushSubscription.owner_type == "student",
-        PushSubscription.owner_id.in_(student_ids),
-    )
-    return _send_to(subs, title, body, url)
-
-
 def notify_specific_students(students, title, body, url):
     ids = [s.id for s in students]
     if not ids:

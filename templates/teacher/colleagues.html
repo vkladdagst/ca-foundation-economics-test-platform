@@ -1,0 +1,42 @@
+{% extends "teacher/_layout.html" %}
+{% set active = 'colleagues' %}
+{% block title %}Colleagues{% endblock %}
+{% block teacher_body %}
+<div class="page-header">
+  <div class="row">
+    <h1>Colleagues</h1>
+    <a href="{{ url_for('teacher.colleague_new') }}" class="btn btn-primary">+ Add Teacher</a>
+  </div>
+</div>
+
+<p class="small muted mb-16" style="max-width:640px;">
+  Every teacher here manages their own tests and dashboard, but you all share the same student roster —
+  a student logs in once and sees every subject's tests they're eligible for.
+</p>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Tests</th><th></th></tr></thead>
+      <tbody>
+        {% for t in teachers %}
+        <tr>
+          <td>{{ t.name }}{% if t.id == current_user.id %} <span class="small muted">(you)</span>{% endif %}</td>
+          <td>{{ t.email }}</td>
+          <td>{{ t.tests.count() }}</td>
+          <td>
+            {% if t.id == current_user.id %}
+            <span class="small muted">Change your password by resetting it below, or ask a colleague.</span>
+            {% endif %}
+            <form method="post" action="{{ url_for('teacher.colleague_reset_password', tid=t.id) }}" onsubmit="return confirm('Reset the login password for ' + {{ t.name|tojson }} + '? Their old password will stop working.');" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm" type="submit">Reset Password</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

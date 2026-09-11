@@ -58,6 +58,9 @@ def entry(code):
     if test.status == "closed":
         return render_template("student/unavailable.html", test=test, reason="This test is now closed.")
 
+    if not test.visible_to_batch(current_user.batch):
+        return render_template("student/unavailable.html", test=test, reason="This test is not available for your batch.")
+
     return render_template("student/entry.html", test=test)
 
 
@@ -67,6 +70,10 @@ def start(code):
     test = get_test_or_404(code)
     if test.status != "active":
         flash("This test is not currently open.", "error")
+        return redirect(url_for("student.entry", code=code))
+
+    if not test.visible_to_batch(current_user.batch):
+        flash("This test is not available for your batch.", "error")
         return redirect(url_for("student.entry", code=code))
 
     if test.one_attempt_only and _my_submission(test):

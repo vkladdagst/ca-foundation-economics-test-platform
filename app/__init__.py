@@ -105,4 +105,7 @@ def create_app(config_class=Config):
     with app.app_context():
         db.create_all()
 
+    from app.migrations import run_light_migrations
+    run_light_migrations(app)
+
     return app

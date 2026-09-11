@@ -7,7 +7,9 @@
     <div>
       <h1>{{ test.title }}</h1>
       <span class="badge badge-{{ test.status }}">{{ test.status }}</span>
-      <span class="small muted">{{ test.total_questions }} questions · {{ test.max_marks }} marks</span>
+      <span class="small muted">{{ test.total_questions }} questions · {{ test.max_marks }} marks · {{ test.subject }}
+        {% if test.target_batches %} · Batches: {{ test.target_batches | join(', ') }}{% else %} · All batches{% endif %}
+      </span>
     </div>
     <div class="btn-group">
       {% if test.status == 'draft' %}

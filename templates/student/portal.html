@@ -21,11 +21,12 @@
   <div class="card">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Test</th><th>Status</th><th>Your Result</th><th></th></tr></thead>
+        <thead><tr><th>Subject</th><th>Test</th><th>Status</th><th>Your Result</th><th></th></tr></thead>
         <tbody>
           {% for t in tests %}
           {% set sub = my_submissions.get(t.id) %}
           <tr>
+            <td class="small muted">{{ t.subject }}</td>
             <td>{{ t.title }}</td>
             <td><span class="badge badge-{{ t.status }}">{{ t.status }}</span></td>
             <td>
