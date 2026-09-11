@@ -14,7 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 def mail_configured():
-    return bool(os.environ.get("SMTP_HOST"))
+    # SMTP_HOST alone isn't enough to actually send anything — without a
+    # password, Gmail (and most providers) will refuse the connection. This
+    # used to check SMTP_HOST only, which showed "Configured" in Settings
+    # even with no password set, silently failing every send.
+    return bool(
+        os.environ.get("SMTP_HOST")
+        and os.environ.get("SMTP_USER")
+        and os.environ.get("SMTP_PASSWORD")
+    )
 
 
 def send_email(to_addrs, subject, body_text):
@@ -50,6 +58,12 @@ def send_email(to_addrs, subject, body_text):
                 server.login(user, password)
             server.send_message(msg)
         return True
+    except smtplib.SMTPAuthenticationError:
+        logger.error(
+            "SMTP authentication failed for user '%s' — check SMTP_USER/SMTP_PASSWORD "
+            "(Gmail requires an App Password, not your normal account password).", user,
+        )
+        return False
     except Exception:
         logger.exception("Failed to send email '%s' to %s", subject, to_addrs)
         return False
