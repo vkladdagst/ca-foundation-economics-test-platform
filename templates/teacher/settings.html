@@ -30,9 +30,15 @@ SMTP_USE_TLS=true</pre>
   {% if push_configured %}
     <p class="small"><span class="badge badge-active">Configured</span> Students can enable "new test" alerts from their portal; you can enable "new submission" alerts from your Dashboard.</p>
     <p class="small muted">This device: {{ push_device_count }} notification subscription(s) registered for your account.</p>
-    {% if vapid_public_key %}
-    <button class="btn btn-sm" data-push-button data-vapid-key="{{ vapid_public_key }}">🔔 Enable notifications on this device</button>
-    {% endif %}
+    <div class="btn-group">
+      {% if vapid_public_key %}
+      <button class="btn btn-sm" data-push-button data-vapid-key="{{ vapid_public_key }}">🔔 Enable notifications on this device</button>
+      {% endif %}
+      <form method="post" action="{{ url_for('teacher.settings_test_push') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm" type="submit">Send a test push</button>
+      </form>
+    </div>
   {% else %}
     <p class="small"><span class="badge badge-draft">Not configured</span></p>
     <p class="small muted">Set <code>VAPID_PUBLIC_KEY</code>, <code>VAPID_PRIVATE_KEY</code>, and <code>VAPID_SUBJECT</code> environment variables on your host, then redeploy. Generate a key pair with the values provided during setup.</p>

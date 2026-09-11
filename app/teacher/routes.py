@@ -778,3 +778,22 @@ def settings_test_email():
     else:
         flash("Could not send the test email — check the SMTP settings and the server logs.", "error")
     return redirect(url_for("teacher.settings"))
+
+
+@teacher_bp.route("/settings/test-push", methods=["POST"])
+@teacher_required
+def settings_test_push():
+    if not push.push_configured():
+        flash("Push is not configured. Set the VAPID_* environment variables first.", "error")
+        return redirect(url_for("teacher.settings"))
+
+    sent = push.notify_teacher(
+        current_user, "Test push notification",
+        "If you see this, push notifications are working correctly.",
+        url_for("teacher.dashboard", _external=True),
+    )
+    if sent:
+        flash(f"Test push sent to {sent} device(s). Check for a notification now.", "success")
+    else:
+        flash("No push reached a device — enable notifications on this device first (Dashboard or Settings), then try again.", "error")
+    return redirect(url_for("teacher.settings"))
