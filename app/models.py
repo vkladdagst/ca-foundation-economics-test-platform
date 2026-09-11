@@ -141,7 +141,7 @@ class Student(UserMixin, db.Model):
     batch = db.Column(db.String(100))
     reg_number = db.Column(db.String(100))
     email = db.Column(db.String(255))
-    mobile = db.Column(db.String(30))
+    mobile = db.Column(db.String(255))
 
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -204,7 +204,7 @@ class Submission(db.Model):
     reg_number = db.Column(db.String(100))
     batch = db.Column(db.String(100))
     email = db.Column(db.String(255))
-    mobile = db.Column(db.String(30))
+    mobile = db.Column(db.String(255))
 
     status = db.Column(db.String(20), default="in_progress")  # in_progress | submitted
     started_at = db.Column(db.DateTime, default=datetime.utcnow)

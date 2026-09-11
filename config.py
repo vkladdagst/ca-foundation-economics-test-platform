@@ -27,6 +27,18 @@ class Config:
         f"sqlite:///{BASE_DIR / 'instance' / 'econ_test.db'}"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # Managed free-tier Postgres (and a web service that itself sleeps and
+    # wakes on the free tier) can silently drop idle connections. Without
+    # this, SQLAlchemy tries to reuse a dead pooled connection and the
+    # request fails with a raw "network error" / broken pipe. pool_pre_ping
+    # cheaply tests each connection before handing it to a request and
+    # transparently reconnects if it's gone; pool_recycle retires
+    # connections proactively before they get that old. Harmless no-op on
+    # SQLite (which doesn't pool connections the same way).
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": 280,
+    }
     UPLOAD_FOLDER = str(BASE_DIR / "uploads" / "question_papers")
     MAX_CONTENT_LENGTH = 15 * 1024 * 1024  # 15 MB upload cap
     ALLOWED_PAPER_EXTENSIONS = {"pdf", "png", "jpg", "jpeg"}

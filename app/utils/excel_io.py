@@ -21,6 +21,16 @@ IMPORT_HEADERS = [
 
 ROSTER_IMPORT_HEADERS = ["Roll Number", "Name", "Batch", "Registration Number", "Email", "Mobile"]
 
+# Keep in sync with the Student model's column lengths (app/models.py).
+ROSTER_FIELD_MAX_LENGTHS = {
+    "roll_number": 100,
+    "name": 255,
+    "batch": 100,
+    "reg_number": 100,
+    "email": 255,
+    "mobile": 255,
+}
+
 
 def _style_header(ws, headers):
     for col, title in enumerate(headers, start=1):
@@ -340,11 +350,28 @@ def parse_roster_import(file_stream):
             continue
         seen_rolls.add(roll)
 
-        rows.append({
+        candidate = {
             "roll_number": roll, "name": name,
             "batch": get(idx_batch) or "", "reg_number": get(idx_reg) or "",
             "email": get(idx_email) or "", "mobile": get(idx_mobile) or "",
-        })
+        }
+
+        # Defense in depth: reject anything too long for its database column
+        # *here*, with a clear message, rather than letting it reach the
+        # database and fail as an unhandled 500. (SQLite doesn't enforce
+        # these limits, which is exactly how a too-long value can pass local
+        # testing and only fail in production Postgres — keep this in sync
+        # with the actual column lengths in app/models.py.)
+        too_long = [
+            f"{field} ({len(value)}/{limit} characters)"
+            for field, limit in ROSTER_FIELD_MAX_LENGTHS.items()
+            if len(candidate.get(field) or "") > limit
+        ]
+        if too_long:
+            errors.append(f"Row {i}: too long for: {', '.join(too_long)}")
+            continue
+
+        rows.append(candidate)
 
     if not rows and not errors:
         errors.append("No data rows found in the file.")
