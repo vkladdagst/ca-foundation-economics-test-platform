@@ -12,34 +12,53 @@
     <div class="stat-card"><div class="label">Wrong / Unanswered</div><div class="value" style="color:var(--danger)">{{ submission.wrong_count }} / {{ submission.unanswered_count }}</div></div>
   </div>
 
-  <div class="card">
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Q</th><th>Your Answer</th><th>Correct Answer</th><th>Status</th><th class="text-right">Marks</th></tr></thead>
-        <tbody>
-          {% for row in rows %}
-          <tr>
-            <td>{{ row.question.q_number }}</td>
-            <td>{{ row.selected or '—' }}</td>
-            <td>{{ row.question.correct_answer }}</td>
-            <td>
-              {% if row.selected is none %}
-                <span class="badge badge-unanswered">Unanswered</span>
-              {% elif row.is_correct %}
-                <span class="badge badge-correct">Correct</span>
-              {% else %}
-                <span class="badge badge-wrong">Wrong</span>
-              {% endif %}
-            </td>
-            <td class="text-right">{{ '%+.2f' % row.marks_awarded if row.selected is not none else '0' }}</td>
-          </tr>
-          {% if row.question.explanation and not row.is_correct %}
-          <tr><td></td><td colspan="4" class="small muted" style="white-space:normal;">{{ row.question.explanation }}</td></tr>
-          {% endif %}
-          {% endfor %}
-        </tbody>
-      </table>
+  {% for row in rows %}
+  {% set q = row.question %}
+  <div class="question-card">
+    <div class="flex-between mb-8">
+      <div class="qnum">Question {{ q.q_number }}</div>
+      {% if row.selected is none %}
+        <span class="badge badge-unanswered">Unanswered · 0</span>
+      {% elif row.is_correct %}
+        <span class="badge badge-correct">Correct · +{{ '%.2f' % row.marks_awarded }}</span>
+      {% else %}
+        <span class="badge badge-wrong">Wrong · {{ '%.2f' % row.marks_awarded }}</span>
+      {% endif %}
     </div>
+
+    {% if q.text %}
+    <div class="question-text">{{ q.text }}</div>
+    <div class="options-grid">
+      {% for letter in ['A','B','C','D'] %}
+      {% set opt_text = q.option_text(letter) %}
+      {% if opt_text %}
+      <div class="option-btn
+        {%- if letter == q.correct_answer %} review-correct
+        {%- elif letter == row.selected %} review-wrong{% endif %}">
+        <span class="option-letter">{{ letter }}</span>
+        <span class="option-text">{{ opt_text }}</span>
+        {% if letter == q.correct_answer %}<span class="review-tag">✓ Correct</span>{% elif letter == row.selected %}<span class="review-tag">✗ Your answer</span>{% endif %}
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="small muted">This test's questions weren't entered on screen (printed-paper workflow) — comparing answers only.</p>
+    <div class="compact-answers">
+      {% for letter in ['A','B','C','D'] %}
+      <div class="option-btn
+        {%- if letter == q.correct_answer %} review-correct
+        {%- elif letter == row.selected %} review-wrong{% endif %}">
+        <span class="option-letter">{{ letter }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if q.explanation and not row.is_correct %}
+    <p class="small muted mt-16" style="border-top:1px solid var(--grey-100); padding-top:12px;"><strong>Explanation:</strong> {{ q.explanation }}</p>
+    {% endif %}
   </div>
+  {% endfor %}
 </div>
 {% endblock %}

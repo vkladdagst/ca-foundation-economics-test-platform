@@ -227,6 +227,11 @@ th a { color: inherit; }
 }
 .option-btn:hover { border-color: var(--primary); }
 .option-btn.selected { border-color: var(--primary); background: var(--primary-light); color: var(--primary-dark); }
+.option-btn.review-correct { border-color: var(--success); background: var(--success-light); color: var(--success); }
+.option-btn.review-correct .option-letter { background: var(--success); color: #fff; }
+.option-btn.review-wrong { border-color: var(--danger); background: var(--danger-light); color: var(--danger); }
+.option-btn.review-wrong .option-letter { background: var(--danger); color: #fff; }
+.review-tag { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; margin-left: auto; }
 .option-letter {
   width: 26px; height: 26px; border-radius: 50%; background: var(--grey-100); color: var(--grey-700);
   display: flex; align-items: center; justify-content: center; font-weight: 750; font-size: 0.8rem; flex-shrink: 0;
