@@ -721,11 +721,19 @@ def student_import():
         if errors:
             return render_template("teacher/student_import.html", errors=errors)
 
+        # One lookup for the whole file instead of one query per row — large
+        # rosters used to do 40+ round trips to the database here, which is
+        # slow enough on a free-tier connection to make a big import more
+        # likely to hit a timeout or a dropped connection than a small one.
+        existing_rolls = {
+            r[0] for r in db.session.query(Student.roll_number)
+            .filter(Student.roll_number.in_([row["roll_number"] for row in rows]))
+        }
+
         created = []
         skipped = []
         for row in rows:
-            existing = Student.query.filter_by(roll_number=row["roll_number"]).first()
-            if existing:
+            if row["roll_number"] in existing_rolls:
                 skipped.append(row["roll_number"])
                 continue
             password = Student.generate_pin()

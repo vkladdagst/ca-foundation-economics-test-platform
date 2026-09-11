@@ -13,7 +13,13 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn run:app
+    # Threaded workers so multiple students hitting the app at once (e.g.
+    # everyone opening the test link within the same minute) are served
+    # concurrently instead of queued one-at-a-time behind a single sync
+    # worker. One process (kind to the free tier's limited RAM) with 4
+    # threads -- most of each request's time is waiting on the database,
+    # which threads handle well despite the GIL.
+    startCommand: gunicorn --worker-class gthread --workers 1 --threads 4 --timeout 60 run:app
     envVars:
       - key: SECRET_KEY
         generateValue: true
