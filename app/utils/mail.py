@@ -1,34 +1,39 @@
-"""Minimal SMTP email helper — no third-party mail service dependency.
+"""Email notifications via Brevo's HTTP API — not raw SMTP.
 
-Configured entirely via environment variables (SMTP_HOST etc., see
-.env.example). If SMTP_HOST is unset, sending is a no-op that returns False
-so the app keeps working without email configured — teachers just won't
-get notifications until they set it up.
+Render (like most cloud hosts — AWS, Railway, Heroku included) blocks all
+outbound SMTP traffic on every plan, to stop the platform being used for
+spam. That's not something credentials can fix: smtplib will never connect
+from here, regardless of provider. A plain HTTPS request isn't blocked
+though, so this calls Brevo's transactional email API directly instead.
+
+Configured via BREVO_API_KEY and EMAIL_FROM env vars. If either is unset,
+sending is a no-op that returns False so the app keeps working without
+email configured — notifications just don't go out until it's set up.
+
+Setup (free, no card required):
+1. Sign up at brevo.com.
+2. Settings -> SMTP & API -> API Keys -> generate one -> that's BREVO_API_KEY.
+3. Senders, Domains & Dedicated IPs -> add EMAIL_FROM as a sender and confirm
+   it via the verification email Brevo sends -- sends fail until this is done.
 """
 import logging
 import os
-import smtplib
-from email.message import EmailMessage
+
+import requests
 
 logger = logging.getLogger(__name__)
 
+BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+
 
 def mail_configured():
-    # SMTP_HOST alone isn't enough to actually send anything — without a
-    # password, Gmail (and most providers) will refuse the connection. This
-    # used to check SMTP_HOST only, which showed "Configured" in Settings
-    # even with no password set, silently failing every send.
-    return bool(
-        os.environ.get("SMTP_HOST")
-        and os.environ.get("SMTP_USER")
-        and os.environ.get("SMTP_PASSWORD")
-    )
+    return bool(os.environ.get("BREVO_API_KEY") and os.environ.get("EMAIL_FROM"))
 
 
 def send_email(to_addrs, subject, body_text):
     """to_addrs: a string or list of strings. Returns True if sent, False otherwise."""
     if not mail_configured():
-        logger.info("SMTP not configured — skipping email '%s'", subject)
+        logger.info("Email not configured — skipping '%s'", subject)
         return False
 
     if isinstance(to_addrs, str):
@@ -37,34 +42,33 @@ def send_email(to_addrs, subject, body_text):
     if not to_addrs:
         return False
 
-    host = os.environ.get("SMTP_HOST")
-    port = int(os.environ.get("SMTP_PORT", "587"))
-    user = os.environ.get("SMTP_USER")
-    password = os.environ.get("SMTP_PASSWORD")
-    sender = os.environ.get("SMTP_FROM", user)
-    use_tls = os.environ.get("SMTP_USE_TLS", "true").lower() != "false"
+    api_key = os.environ.get("BREVO_API_KEY")
+    sender = os.environ.get("EMAIL_FROM")
+    sender_name = os.environ.get("EMAIL_FROM_NAME", "CA Foundation Economics Test Platform")
 
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = sender
-    msg["To"] = ", ".join(to_addrs)
-    msg.set_content(body_text)
+    payload = {
+        "sender": {"email": sender, "name": sender_name},
+        "to": [{"email": addr} for addr in to_addrs],
+        "subject": subject,
+        "textContent": body_text,
+    }
 
     try:
-        with smtplib.SMTP(host, port, timeout=10) as server:
-            if use_tls:
-                server.starttls()
-            if user and password:
-                server.login(user, password)
-            server.send_message(msg)
-        return True
-    except smtplib.SMTPAuthenticationError:
-        logger.error(
-            "SMTP authentication failed for user '%s' — check SMTP_USER/SMTP_PASSWORD "
-            "(Gmail requires an App Password, not your normal account password).", user,
+        resp = requests.post(
+            BREVO_API_URL,
+            json=payload,
+            headers={
+                "accept": "application/json",
+                "api-key": api_key,
+                "content-type": "application/json",
+            },
+            timeout=10,
         )
+        if resp.status_code in (200, 201):
+            return True
+        logger.error("Brevo send failed (HTTP %s): %s", resp.status_code, resp.text[:300])
         return False
-    except Exception:
+    except requests.RequestException:
         logger.exception("Failed to send email '%s' to %s", subject, to_addrs)
         return False
 

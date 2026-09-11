@@ -39,16 +39,9 @@ services:
       - key: VAPID_PRIVATE_KEY
         sync: false
 
-      # --- Email / SMTP (Gmail) ---
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USE_TLS
-        value: "true"
-      - key: SMTP_USER
-        value: smacaoutreach@gmail.com
-      - key: SMTP_FROM
-        value: smacaoutreach@gmail.com
-      - key: SMTP_PASSWORD
-        sync: false   # your 16-char Gmail App Password — add by hand in the dashboard
+      # --- Email (Brevo HTTP API — NOT SMTP; Render blocks outbound SMTP
+      # on every plan, so raw SMTP credentials can never work here) ---
+      - key: EMAIL_FROM
+        value: smacaoutreach@gmail.com   # must be verified as a sender in Brevo first
+      - key: BREVO_API_KEY
+        sync: false   # your Brevo API key — add by hand in the dashboard

@@ -14,14 +14,10 @@
     </form>
   {% else %}
     <p class="small"><span class="badge badge-draft">Not configured</span></p>
-    <p class="small muted">Set these environment variables on your host (Render → your service → Environment), then redeploy:</p>
-    <pre class="small" style="background:var(--grey-50);padding:10px;border-radius:6px;overflow-x:auto;">SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-address@gmail.com
-SMTP_PASSWORD=your-16-char-app-password
-SMTP_FROM=your-address@gmail.com
-SMTP_USE_TLS=true</pre>
-    <p class="small muted">For Gmail you must use an <strong>App Password</strong> (Google Account → Security → 2-Step Verification → App passwords), not your normal password.</p>
+    <p class="small muted">Sent via <a href="https://www.brevo.com" target="_blank" rel="noopener">Brevo's</a> free email API (300/day) — not SMTP, since Render (and most cloud hosts) block outbound SMTP entirely. Set these on your host (Render → your service → Environment), then redeploy:</p>
+    <pre class="small" style="background:var(--grey-50);padding:10px;border-radius:6px;overflow-x:auto;">BREVO_API_KEY=xkeysib-...
+EMAIL_FROM=your-address@gmail.com</pre>
+    <p class="small muted">Get the API key from Brevo → Settings → SMTP &amp; API → API Keys. <strong>EMAIL_FROM must be verified as a sender in Brevo first</strong> (Senders, Domains &amp; Dedicated IPs → add it → confirm the verification email) or sends will fail.</p>
   {% endif %}
 </div>
 

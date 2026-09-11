@@ -248,10 +248,17 @@ Two independent channels. Either, both, or neither can be on — with neither
 configured the app runs exactly as before and the notification buttons
 simply don't appear.
 
-### Email — set the `SMTP_*` env vars
+### Email — set `BREVO_API_KEY` and `EMAIL_FROM`
 
-See `.env.example` (any SMTP provider works; a Gmail example is included —
-Gmail needs an **App Password**, not your normal password). Once set:
+Sent via **Brevo's HTTP API**, not SMTP. This matters: Render (and most
+cloud hosts — AWS, Railway, Heroku included) block all outbound SMTP
+traffic on every plan, to stop the platform being used for spam. That's a
+network-level block, not a credentials problem — no SMTP provider or
+password can work around it once deployed there, only locally. An HTTPS
+API call isn't blocked, so that's what this uses instead. See
+`.env.example` for the two-minute Brevo setup (free, 300 emails/day, no
+card required) — sign up, generate an API key, and verify `EMAIL_FROM` as
+a sender (Brevo emails you a confirmation link). Once set:
 
 - **New test published** → every roster student with an email on file is
   emailed automatically.
@@ -261,7 +268,7 @@ Gmail needs an **App Password**, not your normal password). Once set:
   without publishing anything.
 
 Sending is synchronous (fine at small-institute volume) and never crashes
-a request if SMTP fails — failures are logged and reported as a skipped
+a request if it fails — failures are logged and reported as a skipped
 count.
 
 ### Web Push — set the `VAPID_*` env vars
@@ -398,7 +405,7 @@ app/
   utils/
     grading.py           # server-side evaluation engine
     excel_io.py          # import/export helpers (openpyxl)
-    mail.py               # SMTP notification helper
+    mail.py               # Brevo HTTP API notification helper (not SMTP — see section 10)
     push.py               # Web Push (VAPID) notification helper
 templates/                # Jinja2 templates (teacher/, student/, auth/)
 static/

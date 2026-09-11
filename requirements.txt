@@ -8,3 +8,4 @@ python-dotenv==1.2.2
 gunicorn==23.0.0
 pg8000==1.31.2
 pywebpush==2.5.0
+requests==2.34.2
