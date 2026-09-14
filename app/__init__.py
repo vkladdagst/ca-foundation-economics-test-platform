@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, Response, render_template, send_from_directory
+from flask import Flask, Response, jsonify, render_template, send_from_directory
 
 from config import Config
 from app.extensions import db, login_manager, csrf
@@ -81,6 +81,21 @@ def create_app(config_class=Config):
     @app.route("/offline")
     def offline():
         return render_template("offline.html")
+
+    @app.route("/healthz")
+    def healthz():
+        """A real check, not just 'did the process answer' -- runs an actual
+        database query. This is what the keep-alive workflow pings; if the
+        database is unreachable (expired, network issue, wrong credentials,
+        anything) this returns 503 and the workflow run fails, which makes
+        GitHub email the repo owner automatically. That's what would have
+        caught the Postgres-expiry incident within ~10 minutes instead of
+        only being noticed when someone tried to use the app."""
+        try:
+            db.session.execute(db.text("SELECT 1"))
+            return jsonify({"status": "ok", "database": "connected"}), 200
+        except Exception as exc:
+            return jsonify({"status": "error", "database": "unreachable", "detail": str(exc)[:200]}), 503
 
     @app.errorhandler(404)
     def not_found(e):

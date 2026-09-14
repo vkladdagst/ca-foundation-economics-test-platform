@@ -1,10 +1,16 @@
-name: Keep Render app awake
+name: Keep Render app awake + alert on failure
 
-# Render's free web service spins down after ~15 minutes with no traffic,
-# costing the next visitor a 30-60s cold-start wait. Pinging the homepage
-# every 10 minutes keeps it comfortably below that threshold. This alone
-# costs nothing on GitHub's side (each run is a few seconds) and needs no
-# third-party account. Run it manually any time too, via workflow_dispatch.
+# Two jobs in one: keeps the free web service from spinning down (pinging
+# every 10 minutes, comfortably under Render's ~15-minute inactivity
+# threshold), AND actually verifies the database is reachable by hitting
+# /healthz (a real "SELECT 1" query) instead of just the homepage.
+#
+# Critically, this workflow FAILS (non-zero exit) if that check doesn't
+# come back healthy -- GitHub automatically emails the repo owner whenever
+# a scheduled workflow run fails, so an outage (expired database, crash,
+# anything) surfaces here within ~10 minutes instead of only being noticed
+# when someone tries to use the app. This is exactly what would have
+# caught the Postgres-expiry incident early.
 on:
   schedule:
     - cron: "*/10 * * * *"
@@ -14,10 +20,14 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping the live site
+      - name: Check /healthz (pings the app awake AND verifies the database)
         run: |
-          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 https://ca-foundation-economics-test-platform.onrender.com/)
-          echo "Response: $code"
-          if [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then
-            echo "::warning::Site responded with HTTP $code"
+          response=$(curl -sS --max-time 30 -w "\n%{http_code}" https://ca-foundation-economics-test-platform.onrender.com/healthz || echo -e "\n000")
+          code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "HTTP $code"
+          echo "$body"
+          if [ "$code" != "200" ]; then
+            echo "::error::Health check failed with HTTP $code -- see body above. This run failing means GitHub will email you about it."
+            exit 1
           fi
