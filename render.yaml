@@ -1,12 +1,10 @@
-# Render Blueprint — defines the web service and database together so the
-# whole app can be created with one "New Blueprint" action in the Render
-# dashboard, instead of configuring each piece by hand.
+# Render Blueprint — defines the web service. The database is NOT defined
+# here: Render's own free PostgreSQL expires after a trial period and gets
+# suspended (then deleted) unless upgraded to a paid plan. Using an external
+# free provider (Neon — no expiry, no card required) instead avoids that
+# entirely. DATABASE_URL is a secret you paste in by hand (see README).
 #
 # Usage: Render Dashboard -> New -> Blueprint -> select this repo -> Apply.
-databases:
-  - name: econ-test-db
-    plan: free
-
 services:
   - type: web
     name: ca-foundation-economics-test-platform
@@ -24,9 +22,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
-        fromDatabase:
-          name: econ-test-db
-          property: connectionString
+        sync: false   # paste your Neon (or other free Postgres) connection string here
 
       # --- Web Push ---
       # Public values come from the blueprint; the private key is a secret
