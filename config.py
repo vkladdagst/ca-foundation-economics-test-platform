@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+from urllib.parse import urlsplit, urlunsplit
 
 try:
     from dotenv import load_dotenv
@@ -24,15 +24,17 @@ def _normalize_db_url(url):
     elif url.startswith("postgresql://") and "+pg8000" not in url:
         url = url.replace("postgresql://", "postgresql+pg8000://", 1)
 
-    # pg8000 doesn't accept psycopg2's "sslmode=require" query parameter
-    # (it raises TypeError: unexpected keyword argument 'sslmode') --
-    # providers like Neon include it by default since it's the psycopg2
-    # convention. Strip it here; SSL for pg8000 is configured separately
-    # via connect_args (see SQLALCHEMY_ENGINE_OPTIONS below).
+    # Connection strings from Postgres providers (Neon, Supabase, Render...)
+    # carry query parameters written for psycopg2/libpq -- sslmode,
+    # channel_binding, and others. pg8000's connect() doesn't recognize any
+    # of them and raises "TypeError: unexpected keyword argument '...'" for
+    # whichever one is present, one at a time, as different providers
+    # include different sets. Rather than chase each one individually, drop
+    # every query parameter for pg8000 URLs: this app needs none of them --
+    # TLS is configured explicitly instead, via connect_args, below.
     if "+pg8000" in url:
         parts = urlsplit(url)
-        query = [(k, v) for k, v in parse_qsl(parts.query) if k.lower() != "sslmode"]
-        url = urlunsplit(parts._replace(query=urlencode(query)))
+        url = urlunsplit(parts._replace(query=""))
 
     return url
 
