@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}How to Use{% endblock %}
+{% block body %}
+<div class="container-narrow" style="padding-top:40px; padding-bottom:60px;">
+  <div class="flex-between mb-24">
+    <h1>How to Use the Test Platform</h1>
+    {% if is_student %}
+    <a href="{{ url_for('student_auth.portal') }}" class="btn btn-sm">← Back to My Tests</a>
+    {% else %}
+    <a href="{{ url_for('student_auth.login') }}" class="btn btn-sm">← Back to Login</a>
+    {% endif %}
+  </div>
+
+  <div class="card card-pad mb-16">
+    <h3>1. Logging In</h3>
+    <p class="small">Use the Roll Number and Password your teacher gave you. This one login works for every subject's tests — you don't need a separate account per subject.</p>
+  </div>
+
+  <div class="card card-pad mb-16">
+    <h3>2. Finding a Test</h3>
+    <p class="small">"My Tests" lists every test open to your batch. As more tests get added over the year, use:</p>
+    <ul class="small" style="padding-left:20px;">
+      <li><strong>Search</strong> — type part of a test's name or chapter to jump straight to it.</li>
+      <li><strong>Filter by Chapter</strong> — pick a chapter/unit to see only tests for what you're currently studying.</li>
+    </ul>
+  </div>
+
+  <div class="card card-pad mb-16">
+    <h3>3. Your Progress</h3>
+    <p class="small">The top of "My Tests" shows how many tests and chapters you've attempted so far, plus a chapter-by-chapter breakdown — a quick way to spot chapters you haven't practiced yet.</p>
+  </div>
+
+  <div class="card card-pad mb-16">
+    <h3>4. Taking a Test</h3>
+    <p class="small">Click <strong>Start</strong> on any active test. If it has a timer, keep the page open — closing or refreshing does not stop the clock, and a strict timer will auto-submit when time runs out. You can usually change an answer before you submit, unless your teacher has turned that off for a specific test.</p>
+  </div>
+
+  <div class="card card-pad mb-16">
+    <h3>5. After Submitting</h3>
+    <p class="small">If your teacher enabled it, your score appears immediately. Otherwise, wait for your teacher to share results. Where allowed, click <strong>Review Answers</strong> to see exactly which questions you got right or wrong, with the correct answer shown for each.</p>
+  </div>
+
+  <div class="card card-pad mb-16">
+    <h3>6. Notifications</h3>
+    <p class="small">Tap <strong>🔔 Enable notifications</strong> on the "My Tests" page to get a phone/browser alert whenever a new test is published — useful once tests are being added daily.</p>
+  </div>
+
+  <div class="card card-pad">
+    <h3>Still stuck?</h3>
+    <p class="small">Contact your teacher directly — they can reset your password or check why a test isn't showing up for your batch.</p>
+  </div>
+</div>
+{% endblock %}

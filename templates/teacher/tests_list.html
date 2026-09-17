@@ -35,6 +35,18 @@
       </select>
     </div>
     {% endif %}
+    <div class="form-group" style="margin:0;">
+      <label>Sort by</label>
+      <select name="sort">
+        <option value="-created_at" {{ 'selected' if sort=='-created_at' }}>Newest first</option>
+        <option value="created_at" {{ 'selected' if sort=='created_at' }}>Oldest first</option>
+        <option value="-test_date" {{ 'selected' if sort=='-test_date' }}>Test date (latest)</option>
+        <option value="test_date" {{ 'selected' if sort=='test_date' }}>Test date (earliest)</option>
+        <option value="chapter" {{ 'selected' if sort=='chapter' }}>Chapter (A-Z)</option>
+        <option value="title" {{ 'selected' if sort=='title' }}>Title (A-Z)</option>
+        <option value="status" {{ 'selected' if sort=='status' }}>Status</option>
+      </select>
+    </div>
     <button class="btn" type="submit">Filter</button>
     <a class="btn btn-ghost" href="{{ url_for('teacher.tests_list') }}">Clear</a>
   </form>

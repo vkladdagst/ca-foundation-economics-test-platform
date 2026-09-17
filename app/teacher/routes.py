@@ -64,6 +64,7 @@ def tests_list():
     q = request.args.get("q", "").strip()
     status = request.args.get("status", "")
     chapter = request.args.get("chapter", "")
+    sort = request.args.get("sort", "-created_at")
 
     query = current_user.tests
     if q:
@@ -74,10 +75,21 @@ def tests_list():
     if chapter:
         query = query.filter(Test.chapter == chapter)
 
-    tests = query.order_by(Test.created_at.desc()).all()
+    sort_columns = {
+        "-created_at": Test.created_at.desc(),
+        "created_at": Test.created_at.asc(),
+        "-test_date": Test.test_date.desc(),
+        "test_date": Test.test_date.asc(),
+        "chapter": Test.chapter.asc(),
+        "title": Test.title.asc(),
+        "status": Test.status.asc(),
+    }
+    query = query.order_by(sort_columns.get(sort, Test.created_at.desc()))
+
+    tests = query.all()
     return render_template(
         "teacher/tests_list.html", tests=tests, q=q, status=status,
-        chapter=chapter, available_chapters=_distinct_chapters(),
+        chapter=chapter, available_chapters=_distinct_chapters(), sort=sort,
     )
 
 

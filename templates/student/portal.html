@@ -7,7 +7,10 @@
       <h1>My Tests</h1>
       <p class="muted small">{{ current_user.name }} · {{ current_user.roll_number }}</p>
     </div>
-    <a href="{{ url_for('student_auth.logout') }}" class="btn btn-sm">Log out</a>
+    <div class="btn-group">
+      <a href="{{ url_for('student_auth.help_page') }}" class="btn btn-sm">❓ How to Use</a>
+      <a href="{{ url_for('student_auth.logout') }}" class="btn btn-sm">Log out</a>
+    </div>
   </div>
 
   {% if vapid_public_key %}
@@ -17,20 +20,56 @@
   </div>
   {% endif %}
 
-  {% if available_chapters %}
+  {% if progress.tests_total %}
+  <div class="stat-grid" style="grid-template-columns: repeat(2, 1fr);">
+    <div class="stat-card">
+      <div class="label">Tests Attempted</div>
+      <div class="value">{{ progress.tests_attempted }} / {{ progress.tests_total }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Chapters Attempted</div>
+      <div class="value">{{ progress.chapters_attempted }} / {{ progress.chapters_total }}</div>
+    </div>
+  </div>
+
+  {% if chapter_progress %}
+  <div class="card card-pad mb-24">
+    <p class="small muted mb-8" style="text-transform:uppercase; letter-spacing:.04em; font-weight:650;">Progress by Chapter</p>
+    {% for c in chapter_progress %}
+    <div class="mb-8">
+      <div class="flex-between">
+        <span class="small">{{ c.chapter }}</span>
+        <span class="small muted">{{ c.attempted }} / {{ c.total }}{% if c.avg_percentage is not none %} · avg {{ c.avg_percentage }}%{% endif %}</span>
+      </div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" style="width: {{ (c.attempted / c.total * 100) if c.total else 0 }}%;"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {% if available_chapters or tests or q or chapter %}
   <div class="card card-pad mb-24">
     <form method="get" class="flex gap-12 flex-wrap" style="align-items:end;">
+      <div class="form-group" style="margin:0; flex:1; min-width:180px;">
+        <label>Search</label>
+        <input type="text" name="q" value="{{ q }}" placeholder="Test name or chapter">
+      </div>
+      {% if available_chapters %}
       <div class="form-group" style="margin:0; min-width:220px;">
         <label>Filter by Chapter</label>
-        <select name="chapter" onchange="this.form.submit()">
+        <select name="chapter">
           <option value="">All chapters</option>
           {% for c in available_chapters %}
           <option value="{{ c }}" {{ 'selected' if chapter==c }}>{{ c }}</option>
           {% endfor %}
         </select>
       </div>
-      <noscript><button class="btn" type="submit">Filter</button></noscript>
-      {% if chapter %}<a class="btn btn-ghost" href="{{ url_for('student_auth.portal') }}">Clear</a>{% endif %}
+      {% endif %}
+      <button class="btn" type="submit">Filter</button>
+      {% if chapter or q %}<a class="btn btn-ghost" href="{{ url_for('student_auth.portal') }}">Clear</a>{% endif %}
     </form>
   </div>
   {% endif %}
@@ -70,8 +109,8 @@
       </table>
     </div>
   </div>
-  {% elif chapter %}
-  <div class="empty-state"><h3>No tests found for this chapter</h3><p>Try a different chapter, or <a href="{{ url_for('student_auth.portal') }}">clear the filter</a>.</p></div>
+  {% elif chapter or q %}
+  <div class="empty-state"><h3>No tests match your filter</h3><p>Try a different search or chapter, or <a href="{{ url_for('student_auth.portal') }}">clear the filter</a>.</p></div>
   {% else %}
   <div class="empty-state"><h3>No tests available yet</h3><p>Your teacher hasn't published any tests.</p></div>
   {% endif %}
