@@ -11,6 +11,14 @@ name: Keep Render app awake + alert on failure
 # anything) surfaces here within ~10 minutes instead of only being noticed
 # when someone tries to use the app. This is exactly what would have
 # caught the Postgres-expiry incident early.
+#
+# Two attempts, not one: if the app was already asleep, this very ping is
+# what wakes it up, and Render's free-tier cold start can take longer than
+# a single generous timeout. Without a retry, every cold start reads as a
+# false "outage" and emails the owner even though the app was actually
+# fine (it just needed a few more seconds) -- that's what was flooding the
+# inbox. Only fail (and alert) if the SECOND attempt, after the app has
+# had time to fully wake up, also fails.
 on:
   schedule:
     - cron: "*/10 * * * *"
@@ -22,12 +30,28 @@ jobs:
     steps:
       - name: Check /healthz (pings the app awake AND verifies the database)
         run: |
-          response=$(curl -sS --max-time 30 -w "\n%{http_code}" https://ca-foundation-economics-test-platform.onrender.com/healthz || echo -e "\n000")
+          url="https://ca-foundation-economics-test-platform.onrender.com/healthz"
+
+          check() {
+            curl -sS --max-time 75 -w "\n%{http_code}" "$url" || echo -e "\n000"
+          }
+
+          response=$(check)
           code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | sed '$d')
+
+          if [ "$code" != "200" ]; then
+            echo "First attempt returned HTTP $code (likely a cold start still waking up) -- retrying once after a short wait."
+            echo "$body"
+            sleep 20
+            response=$(check)
+            code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
+          fi
+
           echo "HTTP $code"
           echo "$body"
           if [ "$code" != "200" ]; then
-            echo "::error::Health check failed with HTTP $code -- see body above. This run failing means GitHub will email you about it."
+            echo "::error::Health check failed with HTTP $code on both attempts -- see body above. This run failing means GitHub will email you about it."
             exit 1
           fi

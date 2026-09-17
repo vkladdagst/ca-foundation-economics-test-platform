@@ -30,6 +30,14 @@
       </div>
     </div>
     <div class="form-group">
+      <label>Chapter / Unit</label>
+      <input type="text" name="chapter" list="chapter-options" value="{{ test.chapter if test else '' }}" placeholder="e.g. Theory of Demand">
+      <datalist id="chapter-options">
+        {% for c in available_chapters %}<option value="{{ c }}">{% endfor %}
+      </datalist>
+      <div class="form-hint">Pick from chapters you've already used, or type a new one. Students can filter their test list by this.</div>
+    </div>
+    <div class="form-group">
       <label>Description / Instructions for Students</label>
       <textarea name="description" placeholder="e.g. Attempt all questions. Each question carries 1 mark. Negative marking of 0.25 applies for wrong answers.">{{ test.description if test else '' }}</textarea>
     </div>

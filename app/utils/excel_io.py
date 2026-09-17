@@ -319,6 +319,11 @@ def parse_roster_import(file_stream):
     idx_reg = col_index("registration number", "reg number", "reg no", "reg no.")
     idx_email = col_index("email")
     idx_mobile = col_index("mobile", "mobile number", "phone")
+    # Optional: importing a file previously exported from this app's own
+    # "Student Logins" download (Roll Number/Name/Batch/Password) should
+    # restore each student with their existing password intact, rather than
+    # silently minting new ones and forcing everyone to re-learn a login.
+    idx_password = col_index("password")
 
     if idx_roll is None or idx_name is None:
         errors.append("Missing required column(s): 'Roll Number' and/or 'Name'")
@@ -354,6 +359,7 @@ def parse_roster_import(file_stream):
             "roll_number": roll, "name": name,
             "batch": get(idx_batch) or "", "reg_number": get(idx_reg) or "",
             "email": get(idx_email) or "", "mobile": get(idx_mobile) or "",
+            "password": get(idx_password) or "",
         }
 
         # Defense in depth: reject anything too long for its database column

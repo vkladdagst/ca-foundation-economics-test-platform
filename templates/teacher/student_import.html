@@ -5,7 +5,7 @@
 <div class="page-header"><h1>Import Student Roster</h1></div>
 
 <div class="card card-pad mb-16" style="max-width:640px;">
-  <p class="small muted">Upload an Excel (.xlsx) or CSV file with columns: Roll Number, Name, Batch, Registration Number, Email, Mobile. A login password is generated automatically for each new student.</p>
+  <p class="small muted">Upload an Excel (.xlsx) or CSV file with columns: Roll Number, Name, Batch, Registration Number, Email, Mobile. A login password is generated automatically for each new student — unless the file also has a Password column (e.g. a "Student Logins" export from this app), in which case that exact password is kept so students don't get a new login.</p>
   <a class="btn btn-sm mb-16" href="{{ url_for('teacher.student_import_template') }}">Download Template</a>
 
   <form method="post" enctype="multipart/form-data">

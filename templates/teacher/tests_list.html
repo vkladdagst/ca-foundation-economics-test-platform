@@ -24,6 +24,17 @@
         <option value="closed" {{ 'selected' if status=='closed' }}>Closed</option>
       </select>
     </div>
+    {% if available_chapters %}
+    <div class="form-group" style="margin:0;">
+      <label>Chapter</label>
+      <select name="chapter">
+        <option value="">All</option>
+        {% for c in available_chapters %}
+        <option value="{{ c }}" {{ 'selected' if chapter==c }}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
     <button class="btn" type="submit">Filter</button>
     <a class="btn btn-ghost" href="{{ url_for('teacher.tests_list') }}">Clear</a>
   </form>
@@ -33,11 +44,12 @@
   {% if tests %}
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Test</th><th>Subject</th><th>Date</th><th>Questions</th><th>Attempts</th><th>Status</th><th>Access Code</th><th></th></tr></thead>
+      <thead><tr><th>Test</th><th>Chapter</th><th>Subject</th><th>Date</th><th>Questions</th><th>Attempts</th><th>Status</th><th>Access Code</th><th></th></tr></thead>
       <tbody>
         {% for t in tests %}
         <tr>
           <td><a href="{{ url_for('teacher.results', test_id=t.id) }}">{{ t.title }}</a></td>
+          <td class="small muted">{{ t.chapter or '—' }}</td>
           <td>{{ t.subject }}</td>
           <td>{{ t.test_date | d }}</td>
           <td>{{ t.total_questions }}</td>

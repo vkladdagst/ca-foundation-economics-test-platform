@@ -52,6 +52,7 @@ class Test(db.Model):
     title = db.Column(db.String(255), nullable=False)
     subject = db.Column(db.String(120), default="CA Foundation Economics")
     test_number = db.Column(db.String(50))
+    chapter = db.Column(db.String(150))
     description = db.Column(db.Text)
     test_date = db.Column(db.Date)
     duration_minutes = db.Column(db.Integer)

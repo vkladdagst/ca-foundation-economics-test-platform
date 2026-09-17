@@ -63,6 +63,7 @@ def dashboard():
 def tests_list():
     q = request.args.get("q", "").strip()
     status = request.args.get("status", "")
+    chapter = request.args.get("chapter", "")
 
     query = current_user.tests
     if q:
@@ -70,15 +71,21 @@ def tests_list():
         query = query.filter(db.or_(Test.title.ilike(like), Test.test_number.ilike(like)))
     if status:
         query = query.filter(Test.status == status)
+    if chapter:
+        query = query.filter(Test.chapter == chapter)
 
     tests = query.order_by(Test.created_at.desc()).all()
-    return render_template("teacher/tests_list.html", tests=tests, q=q, status=status)
+    return render_template(
+        "teacher/tests_list.html", tests=tests, q=q, status=status,
+        chapter=chapter, available_chapters=_distinct_chapters(),
+    )
 
 
 def _apply_test_form(test, form):
     test.title = form.get("title", "").strip()
     test.subject = form.get("subject", "CA Foundation Economics").strip()
     test.test_number = form.get("test_number", "").strip()
+    test.chapter = form.get("chapter", "").strip()
     test.description = form.get("description", "").strip()
 
     date_raw = form.get("test_date", "")
@@ -105,6 +112,11 @@ def _distinct_batches():
     return sorted({r[0] for r in rows})
 
 
+def _distinct_chapters():
+    rows = current_user.tests.filter(Test.chapter.isnot(None), Test.chapter != "").distinct()
+    return sorted({t.chapter for t in rows})
+
+
 @teacher_bp.route("/tests/new", methods=["GET", "POST"])
 @teacher_required
 def test_new():
@@ -113,13 +125,13 @@ def test_new():
         _apply_test_form(test, request.form)
         if not test.title:
             flash("Test title is required.", "error")
-            return render_template("teacher/test_form.html", test=None, available_batches=_distinct_batches())
+            return render_template("teacher/test_form.html", test=None, available_batches=_distinct_batches(), available_chapters=_distinct_chapters())
         db.session.add(test)
         db.session.commit()
         flash("Test created. Now add your questions and answer key.", "success")
         return redirect(url_for("teacher.questions", test_id=test.id))
 
-    return render_template("teacher/test_form.html", test=None, available_batches=_distinct_batches())
+    return render_template("teacher/test_form.html", test=None, available_batches=_distinct_batches(), available_chapters=_distinct_chapters())
 
 
 @teacher_bp.route("/tests/<int:test_id>/edit", methods=["GET", "POST"])
@@ -131,7 +143,7 @@ def test_edit(test_id):
         db.session.commit()
         flash("Test updated.", "success")
         return redirect(url_for("teacher.tests_list"))
-    return render_template("teacher/test_form.html", test=test, available_batches=_distinct_batches())
+    return render_template("teacher/test_form.html", test=test, available_batches=_distinct_batches(), available_chapters=_distinct_chapters())
 
 
 @teacher_bp.route("/tests/<int:test_id>/duplicate", methods=["POST"])
@@ -736,7 +748,12 @@ def student_import():
             if row["roll_number"] in existing_rolls:
                 skipped.append(row["roll_number"])
                 continue
-            password = Student.generate_pin()
+            row = dict(row)
+            # If the file carries a Password column (e.g. re-importing this
+            # app's own previously-exported "Student Logins" sheet), reuse
+            # that exact password so the student's login doesn't change.
+            # Otherwise mint a fresh one, same as always.
+            password = row.pop("password", "") or Student.generate_pin()
             student = Student(teacher_id=current_user.id, **row)
             student.set_password(password)
             db.session.add(student)

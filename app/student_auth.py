@@ -52,8 +52,18 @@ def portal():
     ).order_by(Test.created_at.desc()).all()
     tests = [t for t in all_tests if t.visible_to_batch(current_user.batch)]
 
+    # With 200-300 tests uploaded at once, students study different chapters
+    # at different times -- let them narrow the list down to just one.
+    available_chapters = sorted({t.chapter for t in tests if t.chapter})
+    chapter = request.args.get("chapter", "")
+    if chapter:
+        tests = [t for t in tests if t.chapter == chapter]
+
     my_submissions = {
         s.test_id: s for s in current_user.submissions.filter_by(status="submitted")
     }
 
-    return render_template("student/portal.html", tests=tests, my_submissions=my_submissions)
+    return render_template(
+        "student/portal.html", tests=tests, my_submissions=my_submissions,
+        available_chapters=available_chapters, chapter=chapter,
+    )
