@@ -25,11 +25,12 @@
   </div>
 </div>
 
-<div class="stat-grid">
+<div class="stat-grid stat-grid-5">
   <div class="stat-card"><div class="label">Attempted</div><div class="value">{{ stats.attempted }}</div></div>
   <div class="stat-card"><div class="label">Average Score</div><div class="value">{{ stats.average }}</div></div>
   <div class="stat-card"><div class="label">Highest</div><div class="value">{{ stats.highest }}</div></div>
   <div class="stat-card"><div class="label">Lowest</div><div class="value">{{ stats.lowest }}</div></div>
+  <div class="stat-card"><div class="label">Avg Time Taken</div><div class="value">{{ stats.avg_time_taken }}</div></div>
 </div>
 
 <div class="card card-pad mb-16">
@@ -45,6 +46,7 @@
         <option value="name" {{ 'selected' if sort=='name' }}>Name</option>
         <option value="roll" {{ 'selected' if sort=='roll' }}>Roll Number</option>
         <option value="percentage" {{ 'selected' if sort=='percentage' }}>Percentage</option>
+        <option value="time_taken" {{ 'selected' if sort=='time_taken' }}>Time Taken (fastest first)</option>
       </select>
     </div>
     <button class="btn" type="submit">Apply</button>
@@ -55,7 +57,7 @@
   {% if ranked %}
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Rank</th><th>Student</th><th>Roll No.</th><th>Correct</th><th>Wrong</th><th>Unanswered</th><th>Score</th><th>%</th><th></th></tr></thead>
+      <thead><tr><th>Rank</th><th>Student</th><th>Roll No.</th><th>Correct</th><th>Wrong</th><th>Unanswered</th><th>Score</th><th>%</th><th>Time Taken</th><th></th></tr></thead>
       <tbody>
         {% for rank, s in ranked %}
         <tr>
@@ -67,6 +69,7 @@
           <td>{{ s.unanswered_count }}</td>
           <td><strong>{{ s.score }}</strong> / {{ s.max_score }}</td>
           <td>{{ s.percentage }}%</td>
+          <td class="small muted">{{ s.time_taken_display }}</td>
           <td><a class="btn btn-sm" href="{{ url_for('teacher.student_detail', test_id=test.id, submission_id=s.id) }}">View</a></td>
         </tr>
         {% endfor %}

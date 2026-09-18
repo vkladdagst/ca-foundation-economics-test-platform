@@ -9,15 +9,17 @@
     Roll No: {{ submission.roll_number or '—' }} ·
     Reg No: {{ submission.reg_number or '—' }} ·
     Batch: {{ submission.batch or '—' }} ·
+    Started: {{ submission.started_at | dt }} ·
     Submitted: {{ submission.submitted_at | dt }}
   </p>
 </div>
 
-<div class="stat-grid">
+<div class="stat-grid stat-grid-5">
   <div class="stat-card"><div class="label">Score</div><div class="value">{{ submission.score }} / {{ submission.max_score }}</div></div>
   <div class="stat-card"><div class="label">Percentage</div><div class="value">{{ submission.percentage }}%</div></div>
   <div class="stat-card"><div class="label">Correct</div><div class="value" style="color:var(--success)">{{ submission.correct_count }}</div></div>
   <div class="stat-card"><div class="label">Wrong / Unanswered</div><div class="value" style="color:var(--danger)">{{ submission.wrong_count }} / {{ submission.unanswered_count }}</div></div>
+  <div class="stat-card"><div class="label">Time Taken</div><div class="value">{{ submission.time_taken_display }}</div></div>
 </div>
 
 <div class="card">

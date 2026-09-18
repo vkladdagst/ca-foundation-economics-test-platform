@@ -218,7 +218,7 @@ def export_results(test, ranked_submissions):
     headers = [
         "Rank", "Student Name", "Roll Number", "Reg. Number", "Batch",
         "Correct", "Wrong", "Unanswered", "Score", "Max Marks", "Percentage",
-        "Submitted At",
+        "Time Taken", "Submitted At",
     ]
     _style_header(ws, headers)
 
@@ -227,6 +227,7 @@ def export_results(test, ranked_submissions):
             rank, s.student_name, s.roll_number, s.reg_number, s.batch,
             s.correct_count, s.wrong_count, s.unanswered_count,
             s.score, s.max_score, s.percentage,
+            s.time_taken_display,
             s.submitted_at.strftime("%Y-%m-%d %H:%M") if s.submitted_at else "",
         ])
 

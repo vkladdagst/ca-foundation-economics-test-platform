@@ -228,6 +228,25 @@ class Submission(db.Model):
     def new_reference_number():
         return "SUB-" + _gen_code(10, string.ascii_uppercase + string.digits)
 
+    @property
+    def time_taken_seconds(self):
+        """Wall-clock time from starting the test to submitting it. None for
+        an in-progress submission (no submitted_at yet)."""
+        if not self.submitted_at or not self.started_at:
+            return None
+        return max(0, int((self.submitted_at - self.started_at).total_seconds()))
+
+    @property
+    def time_taken_display(self):
+        seconds = self.time_taken_seconds
+        if seconds is None:
+            return "—"
+        hours, remainder = divmod(seconds, 3600)
+        minutes, secs = divmod(remainder, 60)
+        if hours:
+            return f"{hours}h {minutes:02d}m {secs:02d}s"
+        return f"{minutes}m {secs:02d}s"
+
 
 class Response(db.Model):
     __tablename__ = "responses"

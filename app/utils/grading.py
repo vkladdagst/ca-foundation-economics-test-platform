@@ -88,17 +88,29 @@ def compute_ranks(submissions):
     return result
 
 
+def _format_duration(seconds):
+    hours, remainder = divmod(int(seconds), 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m {secs:02d}s"
+    return f"{minutes}m {secs:02d}s"
+
+
 def test_statistics(test):
     subs = list(test.submissions.filter_by(status="submitted"))
     if not subs:
         return {
             "attempted": 0, "average": 0, "highest": 0, "lowest": 0,
-            "median": 0, "max_marks": test.max_marks,
+            "median": 0, "max_marks": test.max_marks, "avg_time_taken": "—",
         }
     scores = sorted(s.score for s in subs)
     n = len(scores)
     mid = n // 2
     median = scores[mid] if n % 2 == 1 else (scores[mid - 1] + scores[mid]) / 2
+
+    times = [s.time_taken_seconds for s in subs if s.time_taken_seconds is not None]
+    avg_time_taken = _format_duration(sum(times) / len(times)) if times else "—"
+
     return {
         "attempted": n,
         "average": round(sum(scores) / n, 2),
@@ -106,6 +118,7 @@ def test_statistics(test):
         "lowest": round(min(scores), 2),
         "median": round(median, 2),
         "max_marks": test.max_marks,
+        "avg_time_taken": avg_time_taken,
     }
 
 

@@ -514,6 +514,8 @@ def results(test_id):
         ranked.sort(key=lambda t: t[1].roll_number or "")
     elif sort == "percentage":
         ranked.sort(key=lambda t: t[1].percentage, reverse=True)
+    elif sort == "time_taken":
+        ranked.sort(key=lambda t: (t[1].time_taken_seconds is None, t[1].time_taken_seconds))
     # default 'rank' already sorted by score desc from compute_ranks
 
     stats = test_statistics(test)
