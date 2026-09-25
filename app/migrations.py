@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 _ADDITIVE_COLUMNS = [
     ("tests", "target_batches_json", "TEXT"),
     ("tests", "chapter", "VARCHAR(150)"),
+    ("questions", "ai_explanation", "TEXT"),
 ]
 
 # (table, column, new_sql_type) — widen an existing column that turned out to

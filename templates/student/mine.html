@@ -58,7 +58,46 @@
     {% if q.explanation and not row.is_correct %}
     <p class="small muted mt-16" style="border-top:1px solid var(--grey-100); padding-top:12px;"><strong>Explanation:</strong> {{ q.explanation }}</p>
     {% endif %}
+
+    {% if ai_enabled and q.text %}
+    <div class="mt-16">
+      <button type="button" class="btn btn-sm" data-explain
+              data-url="{{ url_for('student.explain_question', code=test.access_code, qid=q.id) }}"
+              data-box="explain-{{ q.id }}">💡 Why is this the answer?</button>
+      <div id="explain-{{ q.id }}" class="explain-box" style="display:none;"></div>
+    </div>
+    {% endif %}
   </div>
   {% endfor %}
 </div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+document.querySelectorAll('[data-explain]').forEach(function (btn) {
+  btn.addEventListener('click', async function () {
+    var box = document.getElementById(btn.dataset.box);
+    if (box.dataset.loaded) {
+      box.style.display = box.style.display === 'none' ? 'block' : 'none';
+      return;
+    }
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Thinking…';
+    try {
+      var res = await fetch(btn.dataset.url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': document.querySelector('meta[name=csrf-token]').content }
+      });
+      var data = await res.json();
+      box.textContent = data.ok ? data.explanation : (data.error || 'Could not load an explanation right now.');
+      if (data.ok) box.dataset.loaded = '1';
+    } catch (e) {
+      box.textContent = 'Network problem — please try again.';
+    }
+    box.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = label;
+  });
+});
+</script>
 {% endblock %}

@@ -11,7 +11,7 @@ from werkzeug.utils import secure_filename
 from app.decorators import teacher_required
 from app.extensions import db
 from app.models import Test, Question, Submission, Response, Student, PushSubscription, Teacher
-from app.utils import excel_io, mail, push
+from app.utils import excel_io, explain, mail, push
 from app.utils.grading import test_statistics, question_statistics, compute_ranks, recalculate_test
 
 teacher_bp = Blueprint("teacher", __name__, template_folder="../../templates/teacher")
@@ -191,6 +191,7 @@ def test_duplicate(test_id):
             option_c=q.option_c, option_d=q.option_d,
             correct_answer=q.correct_answer, marks=q.marks,
             negative_marks=q.negative_marks, explanation=q.explanation,
+            ai_explanation=q.ai_explanation,
         ))
     db.session.commit()
     flash(f'Duplicated as "{copy.title}". Edit it and publish when ready.', "success")
@@ -363,6 +364,7 @@ def question_edit(test_id, qid):
         abort(404)
 
     if request.method == "POST":
+        before = (q.text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer)
         q.q_number = int(request.form.get("q_number") or q.q_number)
         q.text = request.form.get("text", "").strip()
         q.option_a = request.form.get("option_a", "").strip()
@@ -370,6 +372,8 @@ def question_edit(test_id, qid):
         q.option_c = request.form.get("option_c", "").strip()
         q.option_d = request.form.get("option_d", "").strip()
         q.correct_answer = request.form.get("correct_answer", "A").strip().upper()
+        if before != (q.text, q.option_a, q.option_b, q.option_c, q.option_d, q.correct_answer):
+            q.ai_explanation = None  # the saved explanation no longer matches this question
         q.marks = float(request.form.get("marks") or test.marks_per_question_default)
         q.negative_marks = float(request.form.get("negative_marks") or test.negative_marks_default)
         q.explanation = request.form.get("explanation", "").strip()
@@ -857,7 +861,22 @@ def settings():
         email_configured=mail.mail_configured(),
         push_configured=push.push_configured(),
         push_device_count=device_count,
+        ai_configured=explain.ai_configured(),
     )
+
+
+@teacher_bp.route("/settings/test-ai", methods=["POST"])
+@teacher_required
+def settings_test_ai():
+    if not explain.ai_configured():
+        flash("AI explanations are not configured. Set GEMINI_API_KEY first.", "error")
+        return redirect(url_for("teacher.settings"))
+    text, error = explain.generate_text("Reply with exactly: AI explanations are working.")
+    if error:
+        flash(f"AI test failed: {error} (see the server logs for details)", "error")
+    else:
+        flash(f"AI test succeeded — the service replied: {text[:120]}", "success")
+    return redirect(url_for("teacher.settings"))
 
 
 @teacher_bp.route("/settings/test-email", methods=["POST"])

@@ -12,7 +12,7 @@ from flask_login import current_user
 from app.decorators import student_required
 from app.extensions import db
 from app.models import Test, Question, Submission, Response, Teacher
-from app.utils import mail, push
+from app.utils import explain, mail, push
 from app.utils.grading import grade_submission
 
 logger = logging.getLogger(__name__)
@@ -290,4 +290,28 @@ def mine(code):
             "is_correct": r.is_correct if r else None,
             "marks_awarded": r.marks_awarded if r else 0,
         })
-    return render_template("student/mine.html", test=test, submission=submission, rows=rows)
+    return render_template(
+        "student/mine.html", test=test, submission=submission, rows=rows,
+        ai_enabled=explain.ai_configured(),
+    )
+
+
+@student_bp.route("/<code>/explain/<int:qid>", methods=["POST"])
+@student_required
+def explain_question(code, qid):
+    """Explain why the correct option is right and the others are wrong.
+    Only available after the student has submitted (never during an attempt)
+    and only where the teacher allows answer review."""
+    test = get_test_or_404(code)
+    submission = _my_submission(test)
+    if not submission or submission.status != "submitted" or not test.allow_review:
+        return jsonify({"ok": False, "error": "Explanations aren't available for this test."}), 403
+
+    question = db.session.get(Question, qid)
+    if not question or question.test_id != test.id:
+        return jsonify({"ok": False, "error": "Invalid question."}), 404
+
+    text, error = explain.explanation_for(question, current_user.id)
+    if error:
+        return jsonify({"ok": False, "error": error})
+    return jsonify({"ok": True, "explanation": text})

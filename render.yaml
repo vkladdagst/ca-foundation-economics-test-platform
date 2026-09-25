@@ -41,3 +41,7 @@ services:
         value: smacaoutreach@gmail.com   # must be verified as a sender in Brevo first
       - key: BREVO_API_KEY
         sync: false   # your Brevo API key — add by hand in the dashboard
+
+      # --- AI question explanations (Google Gemini free tier) ---
+      - key: GEMINI_API_KEY
+        sync: false   # free key from aistudio.google.com/apikey — add by hand in the dashboard

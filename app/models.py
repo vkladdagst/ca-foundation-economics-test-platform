@@ -180,6 +180,10 @@ class Question(db.Model):
     marks = db.Column(db.Float, nullable=False, default=1.0)
     negative_marks = db.Column(db.Float, nullable=False, default=0.0)
     explanation = db.Column(db.Text)
+    # Option-by-option explanation generated on demand the first time any
+    # student asks, then reused for everyone. Cleared whenever the question,
+    # its options or its correct answer are edited.
+    ai_explanation = db.Column(db.Text)
 
     responses = db.relationship("Response", backref="question", lazy="dynamic", cascade="all, delete-orphan")
 

@@ -21,6 +21,21 @@ EMAIL_FROM=your-address@gmail.com</pre>
   {% endif %}
 </div>
 
+<div class="card card-pad mb-16" style="max-width:640px;">
+  <h3>AI question explanations</h3>
+  {% if ai_configured %}
+    <p class="small"><span class="badge badge-active">Configured</span> After submitting, a student who doubts an answer can tap "Why is this the answer?" on that question to get a brief explanation of why your answer-key option is correct, with elimination logic for the other options. Your answer key is always treated as final. Each question is explained once and saved, so it is reused for every student.</p>
+    <form method="post" action="{{ url_for('teacher.settings_test_ai') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm" type="submit">Test the AI connection</button>
+    </form>
+  {% else %}
+    <p class="small"><span class="badge badge-draft">Not configured</span></p>
+    <p class="small muted">Uses Google's free Gemini API. Create a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, then add it on Render (your service → Environment), and redeploy:</p>
+    <pre class="small" style="background:var(--grey-50);padding:10px;border-radius:6px;overflow-x:auto;">GEMINI_API_KEY=your-key-here</pre>
+  {% endif %}
+</div>
+
 <div class="card card-pad" style="max-width:640px;">
   <h3>Push notifications</h3>
   {% if push_configured %}
