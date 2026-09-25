@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import datetime, date
 
 from flask import (
@@ -226,6 +227,7 @@ def test_publish(test_id):
         return redirect(url_for("teacher.questions", test_id=test.id))
     test.status = "active"
     db.session.commit()
+    explain.enqueue_tests(current_app._get_current_object(), [test.id])  # no-op unless AI is set up
 
     link = url_for("student.entry", code=test.access_code, _external=True)
     audience = _students_for_test(test)
@@ -319,7 +321,26 @@ def view_paper(test_id):
 @teacher_required
 def questions(test_id):
     test = get_owned_test(test_id)
-    return render_template("teacher/questions.html", test=test, questions=list(test.questions))
+    qs = list(test.questions)
+    return render_template(
+        "teacher/questions.html", test=test, questions=qs,
+        ai_configured=explain.ai_configured(),
+        explainable=sum(1 for q in qs if (q.text or "").strip()),
+        explained=sum(1 for q in qs if q.ai_explanation),
+    )
+
+
+@teacher_bp.route("/tests/<int:test_id>/prepare-explanations", methods=["POST"])
+@teacher_required
+def test_prepare_explanations(test_id):
+    test = get_owned_test(test_id)
+    if not explain.ai_configured():
+        flash("AI explanations are not configured. Set GEMINI_API_KEY first.", "error")
+    elif explain.enqueue_tests(current_app._get_current_object(), [test.id]):
+        flash("Preparing explanations in the background — about 6 seconds per question. You can leave this page.", "success")
+    else:
+        flash("This test is already queued for preparation.", "info")
+    return redirect(url_for("teacher.questions", test_id=test.id))
 
 
 @teacher_bp.route("/tests/<int:test_id>/questions/new", methods=["GET", "POST"])
@@ -862,7 +883,26 @@ def settings():
         push_configured=push.push_configured(),
         push_device_count=device_count,
         ai_configured=explain.ai_configured(),
+        ai_status=explain.status_snapshot(),
+        ai_prep=explain.prep_status(),
     )
+
+
+@teacher_bp.route("/settings/prepare-all-explanations", methods=["POST"])
+@teacher_required
+def settings_prepare_all_explanations():
+    if not explain.ai_configured():
+        flash("AI explanations are not configured. Set GEMINI_API_KEY first.", "error")
+        return redirect(url_for("teacher.settings"))
+    order = {"active": 0, "closed": 1, "draft": 2}
+    tests = sorted(current_user.tests.all(), key=lambda t: (order.get(t.status, 3), t.id))
+    added = explain.enqueue_tests(current_app._get_current_object(), [t.id for t in tests])
+    flash(
+        f"Queued {added} test(s). Explanations are prepared in the background, about 6 seconds per question; "
+        "questions that already have one are skipped." if added else "Everything is already queued.",
+        "success" if added else "info",
+    )
+    return redirect(url_for("teacher.settings"))
 
 
 @teacher_bp.route("/settings/test-ai", methods=["POST"])
@@ -871,11 +911,13 @@ def settings_test_ai():
     if not explain.ai_configured():
         flash("AI explanations are not configured. Set GEMINI_API_KEY first.", "error")
         return redirect(url_for("teacher.settings"))
-    text, error = explain.generate_text("Reply with exactly: AI explanations are working.")
+    started = time.time()
+    text, error = explain.generate_text(explain.sample_prompt())
+    took = time.time() - started
     if error:
-        flash(f"AI test failed: {explain.last_failure or error}", "error")
+        flash(f"AI test failed after {took:.0f}s: {explain.last_failure or error}", "error")
     else:
-        flash(f"AI test succeeded — the service replied: {text[:120]}", "success")
+        flash(f"AI test succeeded in {took:.1f}s with a real sample question. Sample answer: {text[:160]}", "success")
     return redirect(url_for("teacher.settings"))
 
 

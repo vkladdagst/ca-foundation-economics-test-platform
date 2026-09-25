@@ -25,10 +25,27 @@ EMAIL_FROM=your-address@gmail.com</pre>
   <h3>AI question explanations</h3>
   {% if ai_configured %}
     <p class="small"><span class="badge badge-active">Configured</span> After submitting, a student who doubts an answer can tap "Why is this the answer?" on that question to get a brief explanation of why your answer-key option is correct, with elimination logic for the other options. Your answer key is always treated as final. Each question is explained once and saved, so it is reused for every student.</p>
-    <form method="post" action="{{ url_for('teacher.settings_test_ai') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn btn-sm" type="submit">Test the AI connection</button>
-    </form>
+    <p class="small muted mb-8">
+      <strong>Preparing in the background:</strong>
+      {% if ai_prep.active %}{{ ai_prep.waiting }} test(s) waiting{% if ai_prep.current %}, working on {{ ai_prep.current }}{% endif %}.{% else %}idle.{% endif %}
+      {{ ai_prep.done }} explanation(s) made, {{ ai_prep.failed }} failed since the server last restarted.
+      {% if ai_prep.last_error %}<br>Last problem: {{ ai_prep.last_error }}{% endif %}
+    </p>
+    <p class="small muted mb-8">
+      <strong>Last successful call:</strong> {{ ai_status.last_ok }}
+      {% if ai_status.last_fail %}<br><strong>Last failure:</strong> {{ ai_status.last_fail }}{% endif %}
+    </p>
+    <div class="btn-group">
+      <form method="post" action="{{ url_for('teacher.settings_prepare_all_explanations') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-primary" type="submit">Prepare explanations for all my tests</button>
+      </form>
+      <form method="post" action="{{ url_for('teacher.settings_test_ai') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm" type="submit">Test the AI connection</button>
+      </form>
+    </div>
+    <p class="small muted mt-8">New tests are prepared automatically when you publish them. Preparing runs in the background (about 6 seconds per question) so students just read saved text instantly.</p>
   {% else %}
     <p class="small"><span class="badge badge-draft">Not configured</span></p>
     <p class="small muted">Uses Google's free Gemini API. Create a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, then add it on Render (your service → Environment), and redeploy:</p>

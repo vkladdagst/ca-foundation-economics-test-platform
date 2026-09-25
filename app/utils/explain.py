@@ -1,14 +1,19 @@
-"""On-demand "why is this option right and the others wrong" explanations.
+"""Brief "why is this the answer?" explanations for students' doubts.
 
 Uses Google's Gemini API (free tier, no card). Configured by env vars:
   GEMINI_API_KEY  -- required; unset = feature is off and the app is unchanged
   GEMINI_MODEL    -- optional override, defaults to DEFAULT_MODEL
 
-Each question is explained once and the text is saved on the question row, so
-the free-tier quota is only spent on the first student to ask about it.
+Two ways an explanation gets made, both saved on the question row so the free
+quota is spent once per question:
+  * In the background, ahead of time ("prepare"): patient, with long timeouts
+    and retries, so students later just read saved text instantly.
+  * Live, when a student taps the button on a question that has no saved text
+    yet: strictly time-boxed so nobody waits long.
 """
 import logging
 import os
+import queue
 import re
 import threading
 import time
@@ -59,17 +64,38 @@ def _build_prompt(question):
     )
 
 
+class _SampleQuestion:
+    """A real-looking question for the Settings connection test, so the test
+    exercises the same prompt (and roughly the same speed) students will hit."""
+    text = "Human wants are _____ in response to satisfying their wants."
+    correct_answer = "B"
+    _options = {"A": "Limited", "B": "Unlimited", "C": "Scarce", "D": "Multiple"}
+
+    def option_text(self, letter):
+        return self._options.get(letter)
+
+
+def sample_prompt():
+    return _build_prompt(_SampleQuestion())
+
+
+# ---------------------------------------------------------------- Gemini calls
+
 last_failure = ""
 _RETRYABLE = {500, 502, 503, 504}      # Google-side hiccups worth another try
-_MAX_CALLS = 5
-_TOTAL_BUDGET_SECONDS = 25             # a student should never wait longer; server limit is 60s
-_PER_CALL_TIMEOUT = 12
 _MAX_FALLBACKS = 3
 _BUSY_COOLDOWN = 120                   # skip a busy model for 2 minutes
 _UNAVAILABLE_COOLDOWN = 1800           # skip a retired / no-quota model for 30 minutes
+_MODES = {
+    # A student is waiting: give up quickly (server request limit is 60s).
+    "live": dict(budget=35, per_call=20, max_calls=5, alone_retries=1, alone_sleep=1.5),
+    # Nobody is waiting: be patient, this only costs background time.
+    "patient": dict(budget=180, per_call=60, max_calls=8, alone_retries=3, alone_sleep=10),
+}
 _model_cache = {"names": [], "at": 0.0}
 _last_good = None                      # the model that most recently worked: tried first
 _cooldown = {}                         # model -> time.time() until which to skip it
+_activity = {"ok_at": None, "ok_seconds": None, "ok_model": "", "fail_at": None, "fail_text": ""}
 _PLAIN_FLASH = re.compile(r"^gemini-(\d+(?:\.\d+)*)-flash(-lite)?$")
 
 
@@ -126,38 +152,42 @@ def _cooling(model):
     return _cooldown.get(model, 0) > time.time()
 
 
-def generate_text(prompt):
+def generate_text(prompt, patient=False):
     """Returns (text, None) on success or (None, user-facing error message).
 
     Fast in the normal case (one call to the model that last worked). If a
     model is busy, retired or has no free quota, it is put on a short "skip"
-    list and the next current Gemini flash model is tried, all within a
-    25-second budget. On failure the technical reasons are kept in
-    `last_failure` for the teacher's Settings test (never shown to students)."""
+    list and the next current Gemini flash model is tried. `patient=True` is
+    for background work and allows minutes instead of seconds. On failure the
+    technical reasons are kept in `last_failure` for the teacher's Settings
+    page (never shown to students)."""
     global last_failure, _last_good
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return None, "Explanations are not switched on yet."
 
+    cfg = _MODES["patient" if patient else "live"]
     primary = os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL
-    first = _last_good if _last_good and not _cooling(_last_good) else primary
-    queue = [first]
+    first = next((m for m in (_last_good, primary) if m and not _cooling(m)), None)
+    if first is None:
+        first = next((m for m in _available_models(api_key) if not _cooling(m)), primary)
+    queue_ = [first]
     extended = False
-    retried_alone = False
+    alone_left = cfg["alone_retries"]
     notes = []
     saw_busy = False
     status = None
     started = time.time()
     calls = 0
 
-    while queue and calls < _MAX_CALLS:
-        remaining = _TOTAL_BUDGET_SECONDS - (time.time() - started)
+    while queue_ and calls < cfg["max_calls"]:
+        remaining = cfg["budget"] - (time.time() - started)
         if remaining < 4:
             break
-        model = queue.pop(0)
+        model = queue_.pop(0)
         calls += 1
         try:
-            resp = _post_generate(model, api_key, prompt, min(_PER_CALL_TIMEOUT, remaining))
+            resp = _post_generate(model, api_key, prompt, min(cfg["per_call"], remaining))
         except requests.RequestException as exc:
             logger.warning("Gemini request failed on %s: %s", model, exc)
             status = None
@@ -172,6 +202,7 @@ def generate_text(prompt):
                     text = ""
                 if text:
                     _last_good = model
+                    _activity.update(ok_at=time.time(), ok_seconds=round(time.time() - started, 1), ok_model=model)
                     return text, None
                 notes.append(f"{model}: empty or unexpected answer")
             else:
@@ -194,19 +225,42 @@ def generate_text(prompt):
             extended = True
             others = [m for m in [primary] + _available_models(api_key) if m != model]
             healthy = [m for m in dict.fromkeys(others) if not _cooling(m)]
-            queue += healthy[:_MAX_FALLBACKS]
-        if not queue and saw_busy and not retried_alone:
-            retried_alone = True        # nothing else to try: give the busy model one more go
-            time.sleep(1.5)
-            queue.append(model)
+            queue_ += healthy[:_MAX_FALLBACKS]
+        if not queue_ and saw_busy and alone_left > 0:
+            alone_left -= 1             # nothing else to try: give the busy model another go
+            time.sleep(cfg["alone_sleep"])
+            queue_.append(model)
 
     logger.error("Gemini failed: %s", last_failure)
+    _activity.update(fail_at=time.time(), fail_text=last_failure)
     if status in (400, 401, 403):
         return None, "The explanation service had a problem. Please try again later."
     if saw_busy or status == 429:
         return None, "The explanation service is busy right now. Please try again in a minute."
     return None, "The explanation service had a problem. Please try again later."
 
+
+def _ago(ts):
+    if not ts:
+        return "never"
+    seconds = int(time.time() - ts)
+    if seconds < 60:
+        return "just now"
+    if seconds < 3600:
+        return f"{seconds // 60} min ago"
+    return f"{seconds // 3600} h ago"
+
+
+def status_snapshot():
+    """For the teacher's Settings page."""
+    a = _activity
+    return {
+        "last_ok": (f"{_ago(a['ok_at'])} — took {a['ok_seconds']}s ({a['ok_model']})" if a["ok_at"] else "no successful call yet"),
+        "last_fail": (f"{_ago(a['fail_at'])} — {a['fail_text']}" if a["fail_at"] else ""),
+    }
+
+
+# ------------------------------------------------------------ live (student) use
 
 def _over_student_limit(student_id):
     now = time.time()
@@ -227,7 +281,7 @@ def explanation_for(question, student_id):
         return None, "Explanations are not switched on yet."
 
     with _question_locks[question.id]:
-        db.session.refresh(question)  # another student may have just generated it
+        db.session.refresh(question)  # another student (or the background job) may have just made it
         if question.ai_explanation:
             return question.ai_explanation, None
 
@@ -246,3 +300,92 @@ def explanation_for(question, student_id):
         question.ai_explanation = text
         db.session.commit()
         return text, None
+
+
+# ------------------------------------------------- background preparation
+
+_PACE_SECONDS = 6              # gentle on the free tier's per-minute limit
+_ABORT_AFTER_FAILURES = 3      # this many in a row: give up on this test for now
+_FAILURE_PAUSE_SECONDS = 90
+
+_prep_queue = queue.Queue()
+_prep_queued = set()
+_prep_lock = threading.Lock()
+_prep_thread = None
+_prep = {"current": "", "done": 0, "failed": 0, "last_error": ""}
+
+
+def prep_status():
+    return dict(_prep, waiting=len(_prep_queued), active=bool(_prep_thread and _prep_thread.is_alive() and _prep_queued))
+
+
+def enqueue_tests(app, test_ids):
+    """Queue tests whose questions should get explanations prepared in the
+    background. Returns how many tests were newly queued (0 if the AI is off)."""
+    global _prep_thread
+    if not ai_configured():
+        return 0
+    added = 0
+    with _prep_lock:
+        for test_id in test_ids:
+            if test_id not in _prep_queued:
+                _prep_queued.add(test_id)
+                _prep_queue.put(test_id)
+                added += 1
+        if added and not (_prep_thread and _prep_thread.is_alive()):
+            _prep_thread = threading.Thread(target=_prep_worker, args=(app,), daemon=True)
+            _prep_thread.start()
+    return added
+
+
+def _prep_worker(app):
+    while True:
+        try:
+            test_id = _prep_queue.get(timeout=600)
+        except queue.Empty:
+            return                      # idle for 10 minutes: let the thread end; it restarts when needed
+        try:
+            with app.app_context():
+                _prepare_test(test_id)
+        except Exception:
+            logger.exception("Preparing explanations failed for test %s", test_id)
+        finally:
+            with _prep_lock:
+                _prep_queued.discard(test_id)
+            try:
+                db.session.remove()
+            except Exception:
+                pass
+
+
+def _prepare_test(test_id):
+    from app.models import Question
+
+    ids = [
+        q.id for q in Question.query.filter(Question.test_id == test_id).order_by(Question.order_index)
+        if (q.text or "").strip() and not q.ai_explanation
+    ]
+    _prep["current"] = f"test {test_id}"
+    in_a_row = 0
+    for qid in ids:
+        with _question_locks[qid]:
+            question = db.session.get(Question, qid)
+            if question is None or question.ai_explanation:
+                continue
+            text, error = generate_text(_build_prompt(question), patient=True)
+            if text:
+                question.ai_explanation = text
+                db.session.commit()
+                _prep["done"] += 1
+                in_a_row = 0
+            else:
+                db.session.rollback()
+                _prep["failed"] += 1
+                _prep["last_error"] = last_failure or error
+                in_a_row += 1
+        db.session.remove()
+        if in_a_row >= _ABORT_AFTER_FAILURES:
+            time.sleep(_FAILURE_PAUSE_SECONDS)   # the service is struggling: rest, then move on
+            break
+        time.sleep(_PACE_SECONDS)
+    _prep["current"] = ""

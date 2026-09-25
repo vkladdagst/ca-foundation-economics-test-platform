@@ -32,6 +32,22 @@
   </div>
 </div>
 
+{% if ai_configured and explainable %}
+<div class="card card-pad mb-16 flex-between flex-wrap">
+  <div>
+    <div class="small muted mb-8">Student doubt explanations ("Why is this the answer?")</div>
+    <strong>{{ explained }} of {{ explainable }}</strong> questions have an explanation ready
+    {% if explained < explainable %}<span class="small muted"> — the rest are made when a student asks, or you can prepare them now.</span>{% endif %}
+  </div>
+  {% if explained < explainable %}
+  <form method="post" action="{{ url_for('teacher.test_prepare_explanations', test_id=test.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-sm" type="submit">Prepare explanations now</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
 {% if test.status == 'active' %}
 <div class="card card-pad mb-16 flex-between flex-wrap">
   <div>
