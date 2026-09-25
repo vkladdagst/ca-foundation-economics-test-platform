@@ -9,6 +9,7 @@ the free-tier quota is only spent on the first student to ask about it.
 """
 import logging
 import os
+import re
 import threading
 import time
 from collections import defaultdict, deque
@@ -60,22 +61,26 @@ def _build_prompt(question):
 
 last_failure = ""
 _RETRYABLE = {500, 502, 503, 504}      # Google-side hiccups worth another try
-_MAX_ATTEMPTS = 4
+_MAX_CALLS = 6
 _TOTAL_BUDGET_SECONDS = 40             # stay well inside the 60s request limit
+_MAX_FALLBACKS = 3
 _model_cache = {"names": [], "at": 0.0}
+_PLAIN_FLASH = re.compile(r"^gemini-(\d+(?:\.\d+)*)-flash(-lite)?$")
 
 
 def _google_error_message(resp):
     try:
-        return resp.json()["error"]["message"]
+        message = resp.json()["error"]["message"]
     except (KeyError, ValueError, TypeError):
-        return resp.text[:200]
+        message = resp.text
+    return message.split(". ")[0].splitlines()[0][:110] if message.strip() else ""
 
 
 def _available_models(api_key):
-    """Current text models this key can use, best first: stable 'flash' models
-    (newest name first), then 'flash-lite' ones as a last resort. Model names
-    get retired or overloaded over time, so we ask Google instead of hardcoding."""
+    """Ordinary Gemini 'flash' text models this key can list, best first:
+    newest version first, 'flash-lite' after the full-size ones. Anything that
+    isn't a plain gemini-<version>-flash[-lite] (omni, preview, image, live,
+    pro...) is ignored -- those often have no free-tier quota at all."""
     if _model_cache["names"] and time.time() - _model_cache["at"] < 3600:
         return _model_cache["names"]
     try:
@@ -85,15 +90,14 @@ def _available_models(api_key):
         )
         if resp.status_code != 200:
             return []
-        flash, lite = [], []
+        found = []
         for m in resp.json().get("models", []):
             name = m.get("name", "").split("/")[-1]
-            if "generateContent" not in m.get("supportedGenerationMethods", []) or "flash" not in name:
-                continue
-            if any(bad in name for bad in ("image", "tts", "live", "audio", "preview", "exp", "thinking")):
-                continue
-            (lite if "lite" in name else flash).append(name)
-        names = sorted(flash, reverse=True) + sorted(lite, reverse=True)
+            match = _PLAIN_FLASH.match(name)
+            if match and "generateContent" in m.get("supportedGenerationMethods", []):
+                version = tuple(int(part) for part in match.group(1).split("."))
+                found.append((bool(match.group(2)), tuple(-v for v in version), name))
+        names = [name for _, _, name in sorted(found)]
         _model_cache.update(names=names, at=time.time())
         return names
     except (requests.RequestException, ValueError):
@@ -116,72 +120,67 @@ def _post_generate(model, api_key, prompt):
 def generate_text(prompt):
     """Returns (text, None) on success or (None, user-facing error message).
 
-    Copes with a busy or retired model: retries, and switches to another
-    current Gemini model. On failure the technical reason is kept in
-    `last_failure` for the teacher's Settings test (never shown to students)."""
+    Copes with a busy, retired, or quota-less model: retries a busy one once,
+    then moves on to other current Gemini flash models. On failure the
+    technical reasons are kept in `last_failure` for the teacher's Settings
+    test (never shown to students)."""
     global last_failure
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return None, "Explanations are not switched on yet."
 
-    models = [os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL]
+    primary = os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL
+    queue = [primary, primary]          # second entry = one retry if it's just busy
+    fallbacks_added = False
+    notes = []
+    saw_busy = False
     started = time.time()
-    resp = None
-    pos = 0
-    for attempt in range(_MAX_ATTEMPTS):
-        model = models[pos % len(models)]
+    calls = 0
+
+    while queue and calls < _MAX_CALLS and time.time() - started < _TOTAL_BUDGET_SECONDS:
+        model = queue.pop(0)
+        calls += 1
         try:
             resp = _post_generate(model, api_key, prompt)
-            failure = None
         except requests.RequestException as exc:
-            resp = None
-            failure = f"Could not reach Google: {exc}"
             logger.warning("Gemini request failed on %s: %s", model, exc)
+            resp, status = None, None
+            notes.append(f"{model}: could not reach Google")
+        else:
+            status = resp.status_code
+            if status == 200:
+                try:
+                    parts = resp.json()["candidates"][0]["content"]["parts"]
+                    text = "".join(p.get("text", "") for p in parts).strip()
+                except (KeyError, IndexError, ValueError, TypeError):
+                    text = ""
+                if text:
+                    return text, None
+                notes.append(f"{model}: empty or unexpected answer")
+            else:
+                notes.append(f"{model}: HTTP {status} {_google_error_message(resp)}")
 
-        if resp is not None and resp.status_code == 200:
+        last_failure = " | ".join(notes)
+        if status in (400, 401, 403):   # bad key / not allowed: no model will do better
             break
-        if resp is not None:
-            failure = f"HTTP {resp.status_code} ({model}): {_google_error_message(resp)}"
-        last_failure = failure
+        if status is None or status in _RETRYABLE:
+            saw_busy = True
+            if queue and queue[0] == model:
+                time.sleep(1.5)
+        else:
+            # 404 (retired), 429 (no quota / rate limit) or an odd answer:
+            # retrying the same model is pointless.
+            queue = [m for m in queue if m != model]
+        if not fallbacks_added:
+            fallbacks_added = True
+            queue += [m for m in _available_models(api_key) if m != primary][:_MAX_FALLBACKS]
 
-        gone = resp is not None and resp.status_code == 404
-        transient = resp is None or resp.status_code in _RETRYABLE
-        if not (gone or transient):
-            break
-        if time.time() - started > _TOTAL_BUDGET_SECONDS:
-            break
-        # Widen the list of models to fall back on (first time only).
-        widened = False
-        if len(models) == 1:
-            extras = [m for m in _available_models(api_key) if m != models[0]][:2]
-            if extras:
-                models = extras + models if gone else models + extras
-                widened = gone  # retired: start over from the best replacement
-        pos = 0 if widened else pos + 1
-        if attempt < _MAX_ATTEMPTS - 1 and transient:
-            time.sleep(1.5)
-    else:
-        resp = None
-
-    if resp is None or resp.status_code != 200:
-        if resp is not None and resp.status_code == 429:
-            return None, "Lots of students are asking at once — please try again in a minute."
-        logger.error("Gemini failed: %s", last_failure)
-        if resp is None or resp.status_code in _RETRYABLE:
-            return None, "The explanation service is busy right now. Please try again in a minute."
+    logger.error("Gemini failed: %s", last_failure)
+    if status in (400, 401, 403):
         return None, "The explanation service had a problem. Please try again later."
-
-    try:
-        parts = resp.json()["candidates"][0]["content"]["parts"]
-        text = "".join(p.get("text", "") for p in parts).strip()
-    except (KeyError, IndexError, ValueError, TypeError):
-        last_failure = f"Unexpected response: {resp.text[:200]}"
-        logger.error(last_failure)
-        return None, "The explanation service returned something unexpected. Please try again."
-    if not text:
-        last_failure = "Google returned an empty answer."
-        return None, "No explanation was produced. Please try again."
-    return text, None
+    if saw_busy or (status == 429):
+        return None, "The explanation service is busy right now. Please try again in a minute."
+    return None, "The explanation service had a problem. Please try again later."
 
 
 def _over_student_limit(student_id):
