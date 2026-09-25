@@ -1,17 +1,21 @@
+import logging
 import secrets
+import threading
 from datetime import datetime, timedelta
 
 from flask import (
-    Blueprint, abort, flash, jsonify, redirect, render_template,
+    Blueprint, abort, current_app, flash, jsonify, redirect, render_template,
     request, url_for
 )
 from flask_login import current_user
 
 from app.decorators import student_required
 from app.extensions import db
-from app.models import Test, Question, Submission, Response
+from app.models import Test, Question, Submission, Response, Teacher
 from app.utils import mail, push
 from app.utils.grading import grade_submission
+
+logger = logging.getLogger(__name__)
 
 student_bp = Blueprint("student", __name__, template_folder="../../templates/student")
 
@@ -211,9 +215,14 @@ def submit(code):
 
     grade_submission(submission)
 
-    if mail.mail_configured() and test.teacher.email:
-        mail.send_email(
-            test.teacher.email,
+    # Teacher alerts (email + push) are network calls to third parties that
+    # can take seconds each. They run in the background so the student gets
+    # their result immediately -- otherwise a whole class submitting at the
+    # same moment ties up every worker thread waiting on those calls.
+    threading.Thread(
+        target=_notify_teacher_of_submission,
+        args=(
+            current_app._get_current_object(), test.teacher_id, test.teacher.email,
             f"New submission: {test.title} — {current_user.name}",
             (
                 f"{current_user.name} ({current_user.roll_number}) just submitted {test.title}.\n\n"
@@ -222,15 +231,27 @@ def submit(code):
                 f"Unanswered: {submission.unanswered_count}\n\n"
                 f"View full results in your dashboard."
             ),
-        )
-
-    push.notify_teacher(
-        test.teacher, "New submission",
-        f"{current_user.name} — {submission.score}/{submission.max_score} on {test.title}",
-        url_for("teacher.student_detail", test_id=test.id, submission_id=submission.id, _external=True),
-    )
+            f"{current_user.name} — {submission.score}/{submission.max_score} on {test.title}",
+            url_for("teacher.student_detail", test_id=test.id, submission_id=submission.id, _external=True),
+        ),
+        daemon=True,
+    ).start()
 
     return redirect(url_for("student.success", code=code, ref=submission.reference_number))
+
+
+def _notify_teacher_of_submission(app, teacher_id, teacher_email, subject, body, push_body, push_url):
+    with app.app_context():
+        try:
+            if mail.mail_configured() and teacher_email:
+                mail.send_email(teacher_email, subject, body)
+            teacher = db.session.get(Teacher, teacher_id)
+            if teacher:
+                push.notify_teacher(teacher, "New submission", push_body, push_url)
+        except Exception:
+            logger.exception("Background teacher notification failed")
+        finally:
+            db.session.remove()
 
 
 @student_bp.route("/<code>/success")

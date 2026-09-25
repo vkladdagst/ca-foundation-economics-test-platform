@@ -15,22 +15,66 @@
     <hr class="divider">
     {% if expired %}
     <p class="banner banner-warning">Time's up — your answers are locked. Submit now to record your score.</p>
-    <form method="post" action="{{ url_for('student.submit', code=test.access_code) }}">
+    <form method="post" action="{{ url_for('student.submit', code=test.access_code) }}" data-submit-form>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="btn btn-success btn-lg">Submit Test</button>
+      <button type="submit" class="btn btn-success btn-lg" data-final-submit>Submit Test</button>
     </form>
     {% elif not test.allow_skip and unanswered_numbers %}
     <p class="banner banner-warning">This test requires all questions to be answered before submission.</p>
     <a href="{{ url_for('student.attempt', code=test.access_code) }}" class="btn btn-lg">Go Back &amp; Answer Remaining</a>
     {% else %}
-    <div class="btn-group" style="justify-content:center;">
-      <a href="{{ url_for('student.attempt', code=test.access_code) }}" class="btn btn-lg">Go Back</a>
-      <form method="post" action="{{ url_for('student.submit', code=test.access_code) }}" onsubmit="return confirm('Submit the test now? You will not be able to change your answers afterward.');">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {# The confirmation is drawn on the page itself, not with the browser's
+       confirm() pop-up: in-app browsers (YouTube, Instagram, WhatsApp...)
+       silently swallow that pop-up, which made Submit do nothing at all. #}
+    <form method="post" action="{{ url_for('student.submit', code=test.access_code) }}" data-submit-form data-needs-confirm>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="btn-group" style="justify-content:center;" data-step-ask>
+        <a href="{{ url_for('student.attempt', code=test.access_code) }}" class="btn btn-lg">Go Back</a>
         <button type="submit" class="btn btn-success btn-lg">Submit Test</button>
-      </form>
-    </div>
+      </div>
+      <div data-step-confirm style="display:none;">
+        <p class="banner banner-warning">Submit the test now? You will not be able to change your answers afterward.</p>
+        <div class="btn-group" style="justify-content:center;">
+          <button type="button" class="btn btn-lg" data-confirm-no>Cancel</button>
+          <button type="submit" class="btn btn-success btn-lg" data-final-submit>Yes, Submit</button>
+        </div>
+      </div>
+    </form>
     {% endif %}
   </div>
 </div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+(function () {
+  var form = document.querySelector('[data-submit-form]');
+  if (!form) return;
+  var ask = form.querySelector('[data-step-ask]');
+  var confirmStep = form.querySelector('[data-step-confirm]');
+  var needsConfirm = form.hasAttribute('data-needs-confirm');
+  var confirmed = !needsConfirm;
+
+  form.addEventListener('submit', function (e) {
+    if (!confirmed) {
+      e.preventDefault();
+      ask.style.display = 'none';
+      confirmStep.style.display = 'block';
+      confirmed = true;
+      return;
+    }
+    // Guard against repeat taps while the server is grading.
+    var btn = form.querySelector('[data-final-submit]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+  });
+
+  var no = form.querySelector('[data-confirm-no]');
+  if (no) {
+    no.addEventListener('click', function () {
+      confirmStep.style.display = 'none';
+      ask.style.display = '';
+      confirmed = false;
+    });
+  }
+})();
+</script>
 {% endblock %}
