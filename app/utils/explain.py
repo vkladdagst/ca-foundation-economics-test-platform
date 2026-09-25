@@ -20,6 +20,7 @@ from app.extensions import db
 logger = logging.getLogger(__name__)
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GEMINI_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 DEFAULT_MODEL = "gemini-2.5-flash"
 
 MAX_NEW_PER_STUDENT_PER_HOUR = 25
@@ -57,40 +58,92 @@ def _build_prompt(question):
     )
 
 
+_discovered_model = None
+last_failure = ""
+
+
+def _google_error_message(resp):
+    try:
+        return resp.json()["error"]["message"]
+    except (KeyError, ValueError, TypeError):
+        return resp.text[:200]
+
+
+def _discover_model(api_key):
+    """Ask Google which models this key can use and pick a current 'flash'
+    one. Model names get retired over time; this keeps the feature working
+    without a code change when the default name stops existing."""
+    global _discovered_model
+    try:
+        resp = requests.get(
+            GEMINI_MODELS_URL, headers={"x-goog-api-key": api_key},
+            params={"pageSize": 100}, timeout=15,
+        )
+        if resp.status_code != 200:
+            return None
+        names = []
+        for m in resp.json().get("models", []):
+            name = m.get("name", "").split("/")[-1]
+            if ("generateContent" in m.get("supportedGenerationMethods", []) and "flash" in name
+                    and not any(bad in name for bad in ("lite", "image", "tts", "live", "audio", "preview", "exp", "thinking"))):
+                names.append(name)
+        if names:
+            _discovered_model = sorted(names, reverse=True)[0]
+            logger.warning("Configured Gemini model not found; using %s", _discovered_model)
+            return _discovered_model
+    except (requests.RequestException, ValueError):
+        logger.exception("Gemini model discovery failed")
+    return None
+
+
+def _post_generate(model, api_key, prompt):
+    return requests.post(
+        GEMINI_URL.format(model=model),
+        headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096},
+        },
+        timeout=30,
+    )
+
+
 def generate_text(prompt):
-    """Returns (text, None) on success or (None, user-facing error message)."""
+    """Returns (text, None) on success or (None, user-facing error message).
+    On failure the technical reason is kept in `last_failure` for the
+    teacher's Settings test (never shown to students)."""
+    global last_failure
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return None, "Explanations are not switched on yet."
-    model = os.environ.get("GEMINI_MODEL", DEFAULT_MODEL)
+    model = os.environ.get("GEMINI_MODEL") or _discovered_model or DEFAULT_MODEL
     try:
-        resp = requests.post(
-            GEMINI_URL.format(model=model),
-            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096},
-            },
-            timeout=30,
-        )
-    except requests.RequestException:
+        resp = _post_generate(model, api_key, prompt)
+        if resp.status_code == 404 and _discover_model(api_key):
+            resp = _post_generate(_discovered_model, api_key, prompt)
+    except requests.RequestException as exc:
         logger.exception("Gemini request failed")
+        last_failure = f"Could not reach Google: {exc}"
         return None, "Could not reach the explanation service. Please try again."
 
     if resp.status_code == 429:
         logger.warning("Gemini rate limit hit")
+        last_failure = f"HTTP 429: {_google_error_message(resp)}"
         return None, "Lots of students are asking at once — please try again in a minute."
     if resp.status_code != 200:
-        logger.error("Gemini error HTTP %s: %s", resp.status_code, resp.text[:300])
+        last_failure = f"HTTP {resp.status_code}: {_google_error_message(resp)}"
+        logger.error("Gemini error %s", last_failure)
         return None, "The explanation service had a problem. Please try again later."
 
     try:
         parts = resp.json()["candidates"][0]["content"]["parts"]
         text = "".join(p.get("text", "") for p in parts).strip()
     except (KeyError, IndexError, ValueError, TypeError):
-        logger.error("Unexpected Gemini response: %s", resp.text[:300])
+        last_failure = f"Unexpected response: {resp.text[:200]}"
+        logger.error(last_failure)
         return None, "The explanation service returned something unexpected. Please try again."
     if not text:
+        last_failure = "Google returned an empty answer."
         return None, "No explanation was produced. Please try again."
     return text, None
 

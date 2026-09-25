@@ -873,7 +873,7 @@ def settings_test_ai():
         return redirect(url_for("teacher.settings"))
     text, error = explain.generate_text("Reply with exactly: AI explanations are working.")
     if error:
-        flash(f"AI test failed: {error} (see the server logs for details)", "error")
+        flash(f"AI test failed: {explain.last_failure or error}", "error")
     else:
         flash(f"AI test succeeded — the service replied: {text[:120]}", "success")
     return redirect(url_for("teacher.settings"))
