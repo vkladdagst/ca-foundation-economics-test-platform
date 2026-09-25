@@ -83,18 +83,19 @@ def sample_prompt():
 
 last_failure = ""
 _RETRYABLE = {500, 502, 503, 504}      # Google-side hiccups worth another try
-_MAX_FALLBACKS = 3
-_BUSY_COOLDOWN = 120                   # skip a busy model for 2 minutes
+_BUSY_COOLDOWN = 120                   # first time a model is busy: skip it for 2 minutes...
+_BUSY_COOLDOWN_MAX = 900               # ...doubling each time it stays busy, up to 15 minutes
 _UNAVAILABLE_COOLDOWN = 1800           # skip a retired / no-quota model for 30 minutes
 _MODES = {
     # A student is waiting: give up quickly (server request limit is 60s).
-    "live": dict(budget=35, per_call=20, max_calls=5, alone_retries=1, alone_sleep=1.5),
+    "live": dict(budget=35, per_call=20, max_calls=5, alone_retries=1, alone_sleep=1.5, fallbacks=3),
     # Nobody is waiting: be patient, this only costs background time.
-    "patient": dict(budget=180, per_call=60, max_calls=8, alone_retries=3, alone_sleep=10),
+    "patient": dict(budget=180, per_call=30, max_calls=8, alone_retries=3, alone_sleep=10, fallbacks=5),
 }
 _model_cache = {"names": [], "at": 0.0}
 _last_good = None                      # the model that most recently worked: tried first
 _cooldown = {}                         # model -> time.time() until which to skip it
+_busy_streak = {}                      # model -> how many busy answers in a row
 _activity = {"ok_at": None, "ok_seconds": None, "ok_model": "", "fail_at": None, "fail_text": ""}
 _PLAIN_FLASH = re.compile(r"^gemini-(\d+(?:\.\d+)*)-flash(-lite)?$")
 
@@ -148,6 +149,28 @@ def _post_generate(model, api_key, prompt, timeout):
     )
 
 
+def _summarise(notes):
+    """notes: list of (model, kind). -> 'model-a: busy x3 | model-b: not available'"""
+    order, counts = [], {}
+    for model, kind in notes:
+        if (model, kind) not in counts:
+            order.append((model, kind))
+        counts[(model, kind)] = counts.get((model, kind), 0) + 1
+    return " | ".join(f"{m}: {k}" + (f" x{counts[(m, k)]}" if counts[(m, k)] > 1 else "") for m, k in order)
+
+
+def _kind(status, resp):
+    if status is None:
+        return "no answer in time"
+    if status in _RETRYABLE:
+        return f"busy ({status})"
+    if status == 404:
+        return "not available (404)"
+    if status == 429:
+        return "no free quota / rate limit (429)"
+    return f"HTTP {status} {_google_error_message(resp)}"
+
+
 def _cooling(model):
     return _cooldown.get(model, 0) > time.time()
 
@@ -176,6 +199,7 @@ def generate_text(prompt, patient=False):
     alone_left = cfg["alone_retries"]
     notes = []
     saw_busy = False
+    last_busy = None
     status = None
     started = time.time()
     calls = 0
@@ -191,7 +215,8 @@ def generate_text(prompt, patient=False):
         except requests.RequestException as exc:
             logger.warning("Gemini request failed on %s: %s", model, exc)
             status = None
-            notes.append(f"{model}: no answer from Google in time")
+            resp = None
+            notes.append((model, _kind(None, None)))
         else:
             status = resp.status_code
             if status == 200:
@@ -202,18 +227,22 @@ def generate_text(prompt, patient=False):
                     text = ""
                 if text:
                     _last_good = model
+                    _busy_streak.pop(model, None)
                     _activity.update(ok_at=time.time(), ok_seconds=round(time.time() - started, 1), ok_model=model)
                     return text, None
-                notes.append(f"{model}: empty or unexpected answer")
+                notes.append((model, "empty or unexpected answer"))
             else:
-                notes.append(f"{model}: HTTP {status} {_google_error_message(resp)}")
+                notes.append((model, _kind(status, resp)))
 
-        last_failure = " | ".join(notes)
+        last_failure = _summarise(notes)
         if status in (400, 401, 403):   # bad key / not allowed: no model will do better
             break
         if status is None or status in _RETRYABLE:
             saw_busy = True
-            _cooldown[model] = time.time() + _BUSY_COOLDOWN
+            last_busy = model
+            streak = _busy_streak.get(model, 0) + 1
+            _busy_streak[model] = streak
+            _cooldown[model] = time.time() + min(_BUSY_COOLDOWN * 2 ** (streak - 1), _BUSY_COOLDOWN_MAX)
         elif status != 200:
             # 404 (retired) or 429 (no quota / rate limit). A 200 with no text
             # is just one odd answer, not a reason to shun the whole model.
@@ -225,11 +254,11 @@ def generate_text(prompt, patient=False):
             extended = True
             others = [m for m in [primary] + _available_models(api_key) if m != model]
             healthy = [m for m in dict.fromkeys(others) if not _cooling(m)]
-            queue_ += healthy[:_MAX_FALLBACKS]
-        if not queue_ and saw_busy and alone_left > 0:
-            alone_left -= 1             # nothing else to try: give the busy model another go
+            queue_ += healthy[:cfg["fallbacks"]]
+        if not queue_ and last_busy and alone_left > 0:
+            alone_left -= 1             # nothing else to try: give a busy model another go
             time.sleep(cfg["alone_sleep"])
-            queue_.append(model)
+            queue_.append(last_busy)
 
     logger.error("Gemini failed: %s", last_failure)
     _activity.update(fail_at=time.time(), fail_text=last_failure)
@@ -305,7 +334,7 @@ def explanation_for(question, student_id):
 # ------------------------------------------------- background preparation
 
 _PACE_SECONDS = 6              # gentle on the free tier's per-minute limit
-_ABORT_AFTER_FAILURES = 3      # this many in a row: give up on this test for now
+_ABORT_AFTER_FAILURES = 5      # this many in a row: give up on this test for now
 _FAILURE_PAUSE_SECONDS = 90
 
 _prep_queue = queue.Queue()
@@ -367,7 +396,10 @@ def _prepare_test(test_id):
     ]
     _prep["current"] = f"test {test_id}"
     in_a_row = 0
-    for qid in ids:
+    retried = set()
+    pending = list(ids)
+    while pending:
+        qid = pending.pop(0)
         with _question_locks[qid]:
             question = db.session.get(Question, qid)
             if question is None or question.ai_explanation:
@@ -383,6 +415,9 @@ def _prepare_test(test_id):
                 _prep["failed"] += 1
                 _prep["last_error"] = last_failure or error
                 in_a_row += 1
+                if qid not in retried:
+                    retried.add(qid)
+                    pending.append(qid)      # one more go, after the others
         db.session.remove()
         if in_a_row >= _ABORT_AFTER_FAILURES:
             time.sleep(_FAILURE_PAUSE_SECONDS)   # the service is struggling: rest, then move on

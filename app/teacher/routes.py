@@ -885,7 +885,17 @@ def settings():
         ai_configured=explain.ai_configured(),
         ai_status=explain.status_snapshot(),
         ai_prep=explain.prep_status(),
+        ai_progress=_explanation_progress(),
     )
+
+
+def _explanation_progress():
+    """(ready, total) explanations across all of this teacher's questions that have on-screen text."""
+    base = (
+        db.session.query(Question).join(Test, Question.test_id == Test.id)
+        .filter(Test.teacher_id == current_user.id, Question.text.isnot(None), Question.text != "")
+    )
+    return base.filter(Question.ai_explanation.isnot(None)).count(), base.count()
 
 
 @teacher_bp.route("/settings/prepare-all-explanations", methods=["POST"])

@@ -25,6 +25,7 @@ EMAIL_FROM=your-address@gmail.com</pre>
   <h3>AI question explanations</h3>
   {% if ai_configured %}
     <p class="small"><span class="badge badge-active">Configured</span> After submitting, a student who doubts an answer can tap "Why is this the answer?" on that question to get a brief explanation of why your answer-key option is correct, with elimination logic for the other options. Your answer key is always treated as final. Each question is explained once and saved, so it is reused for every student.</p>
+    <p class="mb-8"><strong>{{ ai_progress[0] }} of {{ ai_progress[1] }}</strong> questions across all your tests have an explanation ready.</p>
     <p class="small muted mb-8">
       <strong>Preparing in the background:</strong>
       {% if ai_prep.active %}{{ ai_prep.waiting }} test(s) waiting{% if ai_prep.current %}, working on {{ ai_prep.current }}{% endif %}.{% else %}idle.{% endif %}
