@@ -58,8 +58,11 @@ def _build_prompt(question):
     )
 
 
-_discovered_model = None
 last_failure = ""
+_RETRYABLE = {500, 502, 503, 504}      # Google-side hiccups worth another try
+_MAX_ATTEMPTS = 4
+_TOTAL_BUDGET_SECONDS = 40             # stay well inside the 60s request limit
+_model_cache = {"names": [], "at": 0.0}
 
 
 def _google_error_message(resp):
@@ -69,31 +72,33 @@ def _google_error_message(resp):
         return resp.text[:200]
 
 
-def _discover_model(api_key):
-    """Ask Google which models this key can use and pick a current 'flash'
-    one. Model names get retired over time; this keeps the feature working
-    without a code change when the default name stops existing."""
-    global _discovered_model
+def _available_models(api_key):
+    """Current text models this key can use, best first: stable 'flash' models
+    (newest name first), then 'flash-lite' ones as a last resort. Model names
+    get retired or overloaded over time, so we ask Google instead of hardcoding."""
+    if _model_cache["names"] and time.time() - _model_cache["at"] < 3600:
+        return _model_cache["names"]
     try:
         resp = requests.get(
             GEMINI_MODELS_URL, headers={"x-goog-api-key": api_key},
             params={"pageSize": 100}, timeout=15,
         )
         if resp.status_code != 200:
-            return None
-        names = []
+            return []
+        flash, lite = [], []
         for m in resp.json().get("models", []):
             name = m.get("name", "").split("/")[-1]
-            if ("generateContent" in m.get("supportedGenerationMethods", []) and "flash" in name
-                    and not any(bad in name for bad in ("lite", "image", "tts", "live", "audio", "preview", "exp", "thinking"))):
-                names.append(name)
-        if names:
-            _discovered_model = sorted(names, reverse=True)[0]
-            logger.warning("Configured Gemini model not found; using %s", _discovered_model)
-            return _discovered_model
+            if "generateContent" not in m.get("supportedGenerationMethods", []) or "flash" not in name:
+                continue
+            if any(bad in name for bad in ("image", "tts", "live", "audio", "preview", "exp", "thinking")):
+                continue
+            (lite if "lite" in name else flash).append(name)
+        names = sorted(flash, reverse=True) + sorted(lite, reverse=True)
+        _model_cache.update(names=names, at=time.time())
+        return names
     except (requests.RequestException, ValueError):
         logger.exception("Gemini model discovery failed")
-    return None
+        return []
 
 
 def _post_generate(model, api_key, prompt):
@@ -104,35 +109,66 @@ def _post_generate(model, api_key, prompt):
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096},
         },
-        timeout=30,
+        timeout=15,
     )
 
 
 def generate_text(prompt):
     """Returns (text, None) on success or (None, user-facing error message).
-    On failure the technical reason is kept in `last_failure` for the
-    teacher's Settings test (never shown to students)."""
+
+    Copes with a busy or retired model: retries, and switches to another
+    current Gemini model. On failure the technical reason is kept in
+    `last_failure` for the teacher's Settings test (never shown to students)."""
     global last_failure
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return None, "Explanations are not switched on yet."
-    model = os.environ.get("GEMINI_MODEL") or _discovered_model or DEFAULT_MODEL
-    try:
-        resp = _post_generate(model, api_key, prompt)
-        if resp.status_code == 404 and _discover_model(api_key):
-            resp = _post_generate(_discovered_model, api_key, prompt)
-    except requests.RequestException as exc:
-        logger.exception("Gemini request failed")
-        last_failure = f"Could not reach Google: {exc}"
-        return None, "Could not reach the explanation service. Please try again."
 
-    if resp.status_code == 429:
-        logger.warning("Gemini rate limit hit")
-        last_failure = f"HTTP 429: {_google_error_message(resp)}"
-        return None, "Lots of students are asking at once — please try again in a minute."
-    if resp.status_code != 200:
-        last_failure = f"HTTP {resp.status_code}: {_google_error_message(resp)}"
-        logger.error("Gemini error %s", last_failure)
+    models = [os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL]
+    started = time.time()
+    resp = None
+    pos = 0
+    for attempt in range(_MAX_ATTEMPTS):
+        model = models[pos % len(models)]
+        try:
+            resp = _post_generate(model, api_key, prompt)
+            failure = None
+        except requests.RequestException as exc:
+            resp = None
+            failure = f"Could not reach Google: {exc}"
+            logger.warning("Gemini request failed on %s: %s", model, exc)
+
+        if resp is not None and resp.status_code == 200:
+            break
+        if resp is not None:
+            failure = f"HTTP {resp.status_code} ({model}): {_google_error_message(resp)}"
+        last_failure = failure
+
+        gone = resp is not None and resp.status_code == 404
+        transient = resp is None or resp.status_code in _RETRYABLE
+        if not (gone or transient):
+            break
+        if time.time() - started > _TOTAL_BUDGET_SECONDS:
+            break
+        # Widen the list of models to fall back on (first time only).
+        widened = False
+        if len(models) == 1:
+            extras = [m for m in _available_models(api_key) if m != models[0]][:2]
+            if extras:
+                models = extras + models if gone else models + extras
+                widened = gone  # retired: start over from the best replacement
+        pos = 0 if widened else pos + 1
+        if attempt < _MAX_ATTEMPTS - 1 and transient:
+            time.sleep(1.5)
+    else:
+        resp = None
+
+    if resp is None or resp.status_code != 200:
+        if resp is not None and resp.status_code == 429:
+            return None, "Lots of students are asking at once — please try again in a minute."
+        logger.error("Gemini failed: %s", last_failure)
+        if resp is None or resp.status_code in _RETRYABLE:
+            return None, "The explanation service is busy right now. Please try again in a minute."
         return None, "The explanation service had a problem. Please try again later."
 
     try:
