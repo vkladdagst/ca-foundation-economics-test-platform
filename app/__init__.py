@@ -93,7 +93,9 @@ def create_app(config_class=Config):
         only being noticed when someone tried to use the app."""
         try:
             db.session.execute(db.text("SELECT 1"))
-            return jsonify({"status": "ok", "database": "connected"}), 200
+            # Render sets RENDER_GIT_COMMIT to the commit that is actually running.
+            commit = os.environ.get("RENDER_GIT_COMMIT", "")[:7]
+            return jsonify({"status": "ok", "database": "connected", "commit": commit}), 200
         except Exception as exc:
             return jsonify({"status": "error", "database": "unreachable", "detail": str(exc)[:200]}), 503
 

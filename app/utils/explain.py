@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 GEMINI_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.8-flash"
 
 MAX_NEW_PER_STUDENT_PER_HOUR = 25
 MAX_CONCURRENT_GENERATIONS = 2
