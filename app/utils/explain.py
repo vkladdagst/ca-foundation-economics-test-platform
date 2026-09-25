@@ -61,10 +61,15 @@ def _build_prompt(question):
 
 last_failure = ""
 _RETRYABLE = {500, 502, 503, 504}      # Google-side hiccups worth another try
-_MAX_CALLS = 6
-_TOTAL_BUDGET_SECONDS = 40             # stay well inside the 60s request limit
+_MAX_CALLS = 5
+_TOTAL_BUDGET_SECONDS = 25             # a student should never wait longer; server limit is 60s
+_PER_CALL_TIMEOUT = 12
 _MAX_FALLBACKS = 3
+_BUSY_COOLDOWN = 120                   # skip a busy model for 2 minutes
+_UNAVAILABLE_COOLDOWN = 1800           # skip a retired / no-quota model for 30 minutes
 _model_cache = {"names": [], "at": 0.0}
+_last_good = None                      # the model that most recently worked: tried first
+_cooldown = {}                         # model -> time.time() until which to skip it
 _PLAIN_FLASH = re.compile(r"^gemini-(\d+(?:\.\d+)*)-flash(-lite)?$")
 
 
@@ -86,7 +91,7 @@ def _available_models(api_key):
     try:
         resp = requests.get(
             GEMINI_MODELS_URL, headers={"x-goog-api-key": api_key},
-            params={"pageSize": 100}, timeout=15,
+            params={"pageSize": 100}, timeout=6,
         )
         if resp.status_code != 200:
             return []
@@ -105,7 +110,7 @@ def _available_models(api_key):
         return []
 
 
-def _post_generate(model, api_key, prompt):
+def _post_generate(model, api_key, prompt, timeout):
     return requests.post(
         GEMINI_URL.format(model=model),
         headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
@@ -113,39 +118,50 @@ def _post_generate(model, api_key, prompt):
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096},
         },
-        timeout=15,
+        timeout=timeout,
     )
+
+
+def _cooling(model):
+    return _cooldown.get(model, 0) > time.time()
 
 
 def generate_text(prompt):
     """Returns (text, None) on success or (None, user-facing error message).
 
-    Copes with a busy, retired, or quota-less model: retries a busy one once,
-    then moves on to other current Gemini flash models. On failure the
-    technical reasons are kept in `last_failure` for the teacher's Settings
-    test (never shown to students)."""
-    global last_failure
+    Fast in the normal case (one call to the model that last worked). If a
+    model is busy, retired or has no free quota, it is put on a short "skip"
+    list and the next current Gemini flash model is tried, all within a
+    25-second budget. On failure the technical reasons are kept in
+    `last_failure` for the teacher's Settings test (never shown to students)."""
+    global last_failure, _last_good
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return None, "Explanations are not switched on yet."
 
     primary = os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL
-    queue = [primary, primary]          # second entry = one retry if it's just busy
-    fallbacks_added = False
+    first = _last_good if _last_good and not _cooling(_last_good) else primary
+    queue = [first]
+    extended = False
+    retried_alone = False
     notes = []
     saw_busy = False
+    status = None
     started = time.time()
     calls = 0
 
-    while queue and calls < _MAX_CALLS and time.time() - started < _TOTAL_BUDGET_SECONDS:
+    while queue and calls < _MAX_CALLS:
+        remaining = _TOTAL_BUDGET_SECONDS - (time.time() - started)
+        if remaining < 4:
+            break
         model = queue.pop(0)
         calls += 1
         try:
-            resp = _post_generate(model, api_key, prompt)
+            resp = _post_generate(model, api_key, prompt, min(_PER_CALL_TIMEOUT, remaining))
         except requests.RequestException as exc:
             logger.warning("Gemini request failed on %s: %s", model, exc)
-            resp, status = None, None
-            notes.append(f"{model}: could not reach Google")
+            status = None
+            notes.append(f"{model}: no answer from Google in time")
         else:
             status = resp.status_code
             if status == 200:
@@ -155,6 +171,7 @@ def generate_text(prompt):
                 except (KeyError, IndexError, ValueError, TypeError):
                     text = ""
                 if text:
+                    _last_good = model
                     return text, None
                 notes.append(f"{model}: empty or unexpected answer")
             else:
@@ -165,20 +182,28 @@ def generate_text(prompt):
             break
         if status is None or status in _RETRYABLE:
             saw_busy = True
-            if queue and queue[0] == model:
-                time.sleep(1.5)
-        else:
-            # 404 (retired), 429 (no quota / rate limit) or an odd answer:
-            # retrying the same model is pointless.
-            queue = [m for m in queue if m != model]
-        if not fallbacks_added:
-            fallbacks_added = True
-            queue += [m for m in _available_models(api_key) if m != primary][:_MAX_FALLBACKS]
+            _cooldown[model] = time.time() + _BUSY_COOLDOWN
+        elif status != 200:
+            # 404 (retired) or 429 (no quota / rate limit). A 200 with no text
+            # is just one odd answer, not a reason to shun the whole model.
+            _cooldown[model] = time.time() + _UNAVAILABLE_COOLDOWN
+        if _last_good == model:
+            _last_good = None
+
+        if not extended:
+            extended = True
+            others = [m for m in [primary] + _available_models(api_key) if m != model]
+            healthy = [m for m in dict.fromkeys(others) if not _cooling(m)]
+            queue += healthy[:_MAX_FALLBACKS]
+        if not queue and saw_busy and not retried_alone:
+            retried_alone = True        # nothing else to try: give the busy model one more go
+            time.sleep(1.5)
+            queue.append(model)
 
     logger.error("Gemini failed: %s", last_failure)
     if status in (400, 401, 403):
         return None, "The explanation service had a problem. Please try again later."
-    if saw_busy or (status == 429):
+    if saw_busy or status == 429:
         return None, "The explanation service is busy right now. Please try again in a minute."
     return None, "The explanation service had a problem. Please try again later."
 
