@@ -156,6 +156,10 @@ legend { font-weight: 650; padding: 0 6px; font-size: 0.92rem; }
 
 .explain-box { white-space: pre-wrap; background: var(--grey-50); border-left: 3px solid var(--primary); border-radius: 6px; padding: 12px 14px; margin-top: 10px; font-size: 0.9rem; line-height: 1.55; }
 
+.explain-details summary { cursor: pointer; display: inline-block; list-style: none; padding: 6px 12px; border: 1px solid var(--grey-100); border-radius: 8px; background: var(--white); font-size: 0.85rem; font-weight: 600; }
+.explain-details summary::-webkit-details-marker { display: none; }
+.explain-details[open] summary { background: var(--grey-50); }
+
 .progress-bar-track { background: var(--grey-100); border-radius: 999px; height: 8px; overflow: hidden; margin-top: 4px; }
 .progress-bar-fill { background: var(--primary); height: 100%; border-radius: 999px; }
 

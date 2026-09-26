@@ -1,0 +1,88 @@
+{% extends "teacher/_layout.html" %}
+{% set active = 'bank' %}
+{% block title %}Preview — Question Bank import{% endblock %}
+{% block teacher_body %}
+<div class="page-header">
+  <a href="{{ url_for('teacher.bank_home') }}" class="small">← Back</a>
+  <h1>Preview — nothing has been saved yet</h1>
+  <p class="muted small">{{ row_count }} question rows read from your file.</p>
+</div>
+
+<div class="stat-grid stat-grid-5">
+  <div class="stat-card"><div class="label">New tests</div><div class="value">{{ summary.tests_new }}</div></div>
+  <div class="stat-card"><div class="label">Existing tests</div><div class="value">{{ summary.tests_existing }}</div></div>
+  <div class="stat-card"><div class="label">Questions added</div><div class="value">{{ summary.added }}</div></div>
+  <div class="stat-card"><div class="label">Questions changed</div><div class="value">{{ summary.updated }}</div></div>
+  <div class="stat-card"><div class="label">Unchanged</div><div class="value">{{ summary.same }}</div></div>
+</div>
+
+{% if summary.tests_regraded %}
+<div class="card card-pad mb-16" style="border-left:4px solid var(--warning, #d98a00);">
+  <strong>{{ summary.tests_regraded }} test(s) already taken by students will be re-graded</strong>
+  <p class="small muted" style="margin:6px 0 0;">Their answer key, options or marks change, so students' scores on those tests may change.
+  {% if summary.answers_moved %}{{ summary.answers_moved }} recorded answer(s) will be moved so they still point at the same option text.{% endif %}
+  {% if summary.answers_unmapped %}<br><strong>{{ summary.answers_unmapped }} answer(s)</strong> sit on options whose text was edited, so they cannot be moved automatically — they stay on their original letter (listed in the change log afterwards).{% endif %}</p>
+</div>
+{% endif %}
+
+{% if warnings %}
+<div class="card card-pad mb-16">
+  <strong>Notes</strong>
+  <ul style="padding-left:20px; margin:6px 0 0;">{% for w in warnings %}<li class="small">{{ w }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="card mb-16">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Test</th><th>Chapter</th><th></th><th>Added</th><th>Changed</th><th>Unchanged</th><th>Not in file</th><th>Already attempted by</th></tr></thead>
+      <tbody>
+        {% for t in per_test %}
+        <tr>
+          <td>{{ t.title }}</td>
+          <td class="small muted">{{ t.chapter or '—' }}</td>
+          <td>{% if t.exists %}<span class="badge badge-active">existing</span>{% else %}<span class="badge badge-draft">new (draft)</span>{% endif %}</td>
+          <td>{{ t.added }}</td><td>{{ t.updated }}</td><td>{{ t.same }}</td>
+          <td>{{ t.missing or '—' }}</td>
+          <td>{% if t.submissions %}{{ t.submissions }} student(s){% if t.regrade %} · will re-grade{% endif %}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if samples %}
+<div class="card card-pad mb-16">
+  <strong>Sample of changes to existing questions</strong>
+  <p class="small muted">The full list is available as a spreadsheet after the import.</p>
+  <ul class="small" style="padding-left:20px;">
+    {% for title, qno, changes in samples %}
+    <li><strong>{{ title }} · Q{{ qno }}</strong>: {% for f, old, new in changes %}{{ f.replace('_', ' ') }}{% if not loop.last %}, {% endif %}{% endfor %}
+      {% for f, old, new in changes if f == 'correct_answer' %} — key <strong>{{ old }} → {{ new }}</strong>{% endfor %}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="card card-pad" style="max-width:760px;">
+  <form method="post" action="{{ url_for('teacher.bank_apply') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="token" value="{{ token }}">
+    <div class="checkbox-row">
+      <input type="checkbox" id="backup_ok" name="backup_ok" required>
+      <label for="backup_ok">I have downloaded a backup of my question bank.</label>
+    </div>
+    {% if per_test | selectattr('missing') | list %}
+    <div class="checkbox-row">
+      <input type="checkbox" id="delete_missing" name="delete_missing">
+      <label for="delete_missing">Also remove questions that are in my tests but not in this file (only for tests nobody has attempted).</label>
+    </div>
+    {% endif %}
+    <div class="btn-group">
+      <button type="submit" class="btn btn-primary">Apply these changes</button>
+      <a href="{{ url_for('teacher.bank_home') }}" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

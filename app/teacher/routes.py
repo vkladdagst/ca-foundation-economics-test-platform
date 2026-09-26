@@ -11,7 +11,7 @@ from werkzeug.utils import secure_filename
 
 from app.decorators import teacher_required
 from app.extensions import db
-from app.models import Test, Question, Submission, Response, Student, PushSubscription, Teacher
+from app.models import Test, Question, Submission, Response, Student, PushSubscription, Teacher, real_explanation_text
 from app.utils import excel_io, explain, mail, push
 from app.utils.grading import test_statistics, question_statistics, compute_ranks, recalculate_test
 
@@ -326,8 +326,11 @@ def questions(test_id):
         "teacher/questions.html", test=test, questions=qs,
         ai_configured=explain.ai_configured(),
         explainable=sum(1 for q in qs if (q.text or "").strip()),
-        explained=sum(1 for q in qs if q.ai_explanation),
-        flagged=sum(1 for q in qs if (q.text or "").strip() and q.ai_explanation and explain.check_explanation(q)),
+        explained=sum(1 for q in qs if q.ai_explanation or q.real_explanation),
+        flagged=sum(
+            1 for q in qs
+            if (q.text or "").strip() and q.ai_explanation and not q.real_explanation and explain.check_explanation(q)
+        ),
     )
 
 
@@ -534,6 +537,9 @@ def question_import(test_id):
             )
 
         replace = request.form.get("replace") == "on"
+        if replace and test.submissions.count():
+            flash("Students have already attempted this test, so its questions can't be replaced here. Use Question Bank to update it safely.", "error")
+            return redirect(url_for("teacher.question_import", test_id=test.id))
         if replace:
             Question.query.filter_by(test_id=test.id).delete()
 
@@ -949,11 +955,14 @@ def settings():
 
 def _explanation_progress():
     """(ready, total) explanations across all of this teacher's questions that have on-screen text."""
-    base = (
-        db.session.query(Question).join(Test, Question.test_id == Test.id)
+    rows = (
+        db.session.query(Question.explanation, Question.ai_explanation)
+        .join(Test, Question.test_id == Test.id)
         .filter(Test.teacher_id == current_user.id, Question.text.isnot(None), Question.text != "")
+        .all()
     )
-    return base.filter(Question.ai_explanation.isnot(None)).count(), base.count()
+    ready = sum(1 for explanation, ai in rows if ai or real_explanation_text(explanation))
+    return ready, len(rows)
 
 
 @teacher_bp.route("/settings/prepare-all-explanations", methods=["POST"])
@@ -1028,3 +1037,8 @@ def settings_test_push():
     else:
         flash("No push reached a device — enable notifications on this device first (Dashboard or Settings), then try again.", "error")
     return redirect(url_for("teacher.settings"))
+
+
+# Whole-question-bank import/export lives in its own module.
+from app.teacher import bank as _bank  # noqa: E402
+_bank.register(teacher_bp)

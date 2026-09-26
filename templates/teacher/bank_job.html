@@ -1,0 +1,46 @@
+{% extends "teacher/_layout.html" %}
+{% set active = 'bank' %}
+{% block title %}Importing…{% endblock %}
+{% block teacher_body %}
+<div class="page-header"><h1 id="job-title">Importing your question bank…</h1></div>
+
+<div class="card card-pad mb-16" style="max-width:760px;">
+  <div class="progress-bar-track"><div class="progress-bar-fill" id="bar" style="width:0%"></div></div>
+  <p class="small muted mt-8" id="progress-text">Starting…</p>
+  <p class="small muted">You can leave this page open; it takes a few seconds per few hundred questions.</p>
+</div>
+
+<div class="card card-pad" id="result" style="max-width:760px; display:none;"></div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+(function () {
+  var statusUrl = "{{ url_for('teacher.bank_job_status', token=token) }}";
+  var changesUrl = "{{ url_for('teacher.bank_job_changes', token=token) }}";
+  var labels = {
+    tests_created: 'New tests created (as drafts)', tests_updated: 'Tests whose details were updated',
+    questions_added: 'Questions added', questions_updated: 'Questions updated',
+    questions_deleted: 'Questions removed', answers_moved: "Students' answers moved to follow their option",
+    answers_unmapped: 'Answers that could not be moved automatically (see change log)', tests_regraded: 'Tests re-graded'
+  };
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function poll() {
+    fetch(statusUrl).then(function (r) { return r.json(); }).then(function (j) {
+      var pct = j.total ? Math.round(100 * j.done / j.total) : 0;
+      document.getElementById('bar').style.width = pct + '%';
+      document.getElementById('progress-text').textContent = j.done + ' of ' + j.total + ' tests processed';
+      if (j.state === 'running') { setTimeout(poll, 1500); return; }
+      var html = '<h3>' + (j.state === 'done' ? 'Import finished' : 'Import stopped with a problem') + '</h3><ul style="padding-left:20px;">';
+      Object.keys(labels).forEach(function (k) { if (j.stats[k]) html += '<li>' + labels[k] + ': <strong>' + j.stats[k] + '</strong></li>'; });
+      html += '</ul><div style="height:8px"></div>';
+      if (j.errors.length) html += '<p style="color:var(--danger)"><strong>Problems:</strong></p><ul>' + j.errors.map(function (e) { return '<li class="small">' + esc(e) + '</li>'; }).join('') + '</ul>';
+      if (j.changes) html += '<p><a class="btn btn-sm" href="' + changesUrl + '">Download the full change log (Excel)</a></p>';
+      html += '<p><a class="btn btn-primary" href="{{ url_for('teacher.tests_list') }}">Go to Tests</a></p>';
+      var box = document.getElementById('result'); box.innerHTML = html; box.style.display = 'block';
+      document.getElementById('job-title').textContent = j.state === 'done' ? 'Import complete' : 'Import stopped';
+    }).catch(function () { setTimeout(poll, 3000); });
+  }
+  poll();
+})();
+</script>
+{% endblock %}

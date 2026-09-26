@@ -1,0 +1,51 @@
+{% extends "teacher/_layout.html" %}
+{% set active = 'bank' %}
+{% block title %}Question Bank{% endblock %}
+{% block teacher_body %}
+<div class="page-header"><h1>Question Bank</h1></div>
+
+<div class="card card-pad mb-16" style="max-width:760px;">
+  <h3>1. Download a backup first</h3>
+  <p class="small muted">Every question of every test, with answers and explanations, in one Excel file. Keep it safe: if a bulk import ever goes wrong you can fix things from this file. Importing this untouched file changes nothing.</p>
+  <a class="btn btn-sm" href="{{ url_for('teacher.bank_export') }}">Download question bank (Excel)</a>
+</div>
+
+<div class="card card-pad mb-16" style="max-width:760px;">
+  <h3>2. Import a whole question bank</h3>
+  <p class="small muted">One Excel sheet can hold many tests. Columns: <strong>Test Title</strong> (required), Test Number, Chapter, Subject, <strong>Q No</strong>, Question, <strong>Option A – D</strong>, <strong>Correct Answer</strong> (A/B/C/D), Marks, Negative Marks, Explanation.</p>
+  <ul class="small muted" style="padding-left:20px;">
+    <li>Questions are matched to existing tests by <strong>Test Title</strong> and to existing questions by <strong>Q No</strong>. Matching questions are <em>updated in place</em>; nothing students have answered is deleted.</li>
+    <li>A title that doesn't exist yet creates a new test, saved as a <em>draft</em> — you publish it when you're ready.</li>
+    <li>If you re-order the options of a question students have already answered, their recorded answers move with the option text, and that test is re-graded.</li>
+    <li>A blank Explanation cell leaves the existing explanation untouched. Blank Marks / Negative Marks keep the current values.</li>
+    <li>You will see a preview of exactly what will change before anything is saved.</li>
+  </ul>
+  <a class="btn btn-sm mb-16" href="{{ url_for('teacher.bank_template') }}">Download blank template</a>
+
+  <form method="post" action="{{ url_for('teacher.bank_import') }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label>Excel file (.xlsx)</label>
+      <input type="file" name="file" accept=".xlsx" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Check file &amp; preview changes</button>
+  </form>
+</div>
+
+{% if errors %}
+<div class="card card-pad mb-16" style="max-width:760px;">
+  <h3 style="color:var(--danger)">The file has problems — nothing was changed</h3>
+  <ul style="padding-left:20px;">
+    {% for e in errors %}<li class="small">{{ e }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% if warnings %}
+<div class="card card-pad mb-16" style="max-width:760px;">
+  <h3>Notes</h3>
+  <ul style="padding-left:20px;">
+    {% for w in warnings %}<li class="small">{{ w }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

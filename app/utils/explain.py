@@ -329,6 +329,8 @@ def _over_student_limit(student_id):
 def explanation_for(question, student_id):
     """Returns (text, None) or (None, error message). Reuses the saved
     explanation when there is one; otherwise generates and saves it."""
+    if question.real_explanation:
+        return question.real_explanation, None
     if question.ai_explanation:
         return question.ai_explanation, None
     if not (question.text or "").strip():
@@ -419,7 +421,7 @@ def _prepare_test(test_id):
 
     ids = [
         q.id for q in Question.query.filter(Question.test_id == test_id).order_by(Question.order_index)
-        if (q.text or "").strip() and not q.ai_explanation
+        if (q.text or "").strip() and not q.ai_explanation and not q.real_explanation
     ]
     _prep["current"] = f"test {test_id}"
     in_a_row = 0

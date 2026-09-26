@@ -55,10 +55,15 @@
     </div>
     {% endif %}
 
-    {% if q.explanation and not row.is_correct %}
-    <p class="small muted mt-16" style="border-top:1px solid var(--grey-100); padding-top:12px;"><strong>Explanation:</strong> {{ q.explanation }}</p>
-    {% endif %}
-
+    {# A saved explanation opens instantly (no server call, works in every
+       browser). Only questions without one fall back to the AI button. #}
+    {% if q.real_explanation %}
+    <details class="explain-details mt-16">
+      <summary>💡 Why is this the answer?</summary>
+      <div class="explain-box" style="display:block;">{{ q.real_explanation }}</div>
+    </details>
+    {% else %}
+    {% if q.source_note %}<p class="small muted mt-16">Source: {{ q.source_note }}</p>{% endif %}
     {% if ai_enabled and q.text %}
     <div class="mt-16">
       <button type="button" class="btn btn-sm" data-explain
@@ -66,6 +71,7 @@
               data-box="explain-{{ q.id }}">💡 Why is this the answer?</button>
       <div id="explain-{{ q.id }}" class="explain-box" style="display:none;"></div>
     </div>
+    {% endif %}
     {% endif %}
   </div>
   {% endfor %}

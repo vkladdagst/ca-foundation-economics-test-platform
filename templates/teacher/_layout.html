@@ -7,6 +7,7 @@
       <option value="">Menu</option>
       <option value="{{ url_for('teacher.dashboard') }}">Dashboard</option>
       <option value="{{ url_for('teacher.tests_list') }}">Tests</option>
+      <option value="{{ url_for('teacher.bank_home') }}">Question Bank</option>
       <option value="{{ url_for('teacher.roster') }}">Students</option>
       <option value="{{ url_for('teacher.colleagues') }}">Colleagues</option>
       <option value="{{ url_for('teacher.settings') }}">Settings</option>
@@ -20,6 +21,7 @@
     <nav class="sidebar-nav">
       <a href="{{ url_for('teacher.dashboard') }}" class="{{ 'active' if active=='dashboard' }}">📊 Dashboard</a>
       <a href="{{ url_for('teacher.tests_list') }}" class="{{ 'active' if active=='tests' }}">📝 Tests</a>
+      <a href="{{ url_for('teacher.bank_home') }}" class="{{ 'active' if active=='bank' }}">🗂️ Question Bank</a>
       <a href="{{ url_for('teacher.roster') }}" class="{{ 'active' if active=='students' }}">🎓 Students</a>
       <a href="{{ url_for('teacher.colleagues') }}" class="{{ 'active' if active=='colleagues' }}">👥 Colleagues</a>
       <a href="{{ url_for('teacher.settings') }}" class="{{ 'active' if active=='settings' }}">⚙️ Settings</a>

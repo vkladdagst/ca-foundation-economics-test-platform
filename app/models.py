@@ -1,4 +1,5 @@
 import json
+import re
 import secrets
 import string
 from datetime import datetime
@@ -7,6 +8,19 @@ from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
+
+
+# The Explanation column started life holding short source notes such as
+# "ICAI Scanner PYQ - CA CPT Nov. 2018 (verified against official answer key)".
+# Those must not be shown to students as if they were a worked explanation.
+_SOURCE_NOTE = re.compile(r"\b(icai|scanner|cpt|pyq|source|verified|mock|adapted)\b", re.I)
+
+
+def real_explanation_text(value):
+    text = (value or "").strip()
+    if not text or (len(text) < 200 and _SOURCE_NOTE.search(text)):
+        return None
+    return text
 
 
 def _gen_code(length=8, alphabet=string.ascii_uppercase + string.digits):
@@ -192,6 +206,16 @@ class Question(db.Model):
             "A": self.option_a, "B": self.option_b,
             "C": self.option_c, "D": self.option_d,
         }.get(letter)
+
+    @property
+    def real_explanation(self):
+        """The teacher-prepared explanation students should see, or None."""
+        return real_explanation_text(self.explanation)
+
+    @property
+    def source_note(self):
+        text = (self.explanation or "").strip()
+        return text if text and self.real_explanation is None else None
 
 
 class Submission(db.Model):
