@@ -1,0 +1,61 @@
+{% extends "teacher/_layout.html" %}
+{% set active = 'tests' %}
+{% block title %}Review explanations — {{ test.title }}{% endblock %}
+{% block teacher_body %}
+<div class="page-header">
+  <a href="{{ url_for('teacher.questions', test_id=test.id) }}" class="small">← Back to questions</a>
+  <div class="row">
+    <div>
+      <h1>Review explanations</h1>
+      <p class="muted small">{{ test.title }} · {{ flagged }} question(s) flagged by the automatic checks</p>
+    </div>
+    <div class="btn-group">
+      {% if only_flagged %}
+      <a class="btn" href="{{ url_for('teacher.explanations', test_id=test.id) }}">Show all</a>
+      {% else %}
+      <a class="btn" href="{{ url_for('teacher.explanations', test_id=test.id, flagged=1) }}">Show only flagged ({{ flagged }})</a>
+      {% endif %}
+      <a class="btn" href="{{ url_for('teacher.explanations_export') }}">Download all tests (Excel)</a>
+    </div>
+  </div>
+</div>
+
+<div class="card card-pad mb-16">
+  <p class="small muted">The automatic checks only catch machine-visible slips (wrong answer letter, an option not discussed, the AI doubting your key). They cannot tell whether the economics is right — read a sample yourself. You can edit any explanation below; students see exactly what is saved here. Your answer key is never changed by this page.</p>
+</div>
+
+{% for r in rows %}
+{% set q = r.q %}
+<div class="question-card" id="q{{ q.id }}">
+  <div class="flex-between mb-8">
+    <div class="qnum">Question {{ q.q_number }}</div>
+    <div>{% for f in r.flags %}<span class="badge badge-wrong" style="margin-left:4px;">{{ f }}</span>{% endfor %}</div>
+  </div>
+  <div class="question-text">{{ q.text }}</div>
+  <div class="options-grid">
+    {% for letter in ['A','B','C','D'] %}
+    {% if q.option_text(letter) %}
+    <div class="option-btn{% if letter == q.correct_answer %} review-correct{% endif %}">
+      <span class="option-letter">{{ letter }}</span>
+      <span class="option-text">{{ q.option_text(letter) }}</span>
+      {% if letter == q.correct_answer %}<span class="review-tag">✓ Key</span>{% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  <form method="post" action="{{ url_for('teacher.explanation_update', test_id=test.id, qid=q.id) }}" class="mt-16">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="flagged" value="{{ '1' if only_flagged else '' }}">
+    <textarea name="explanation" rows="7" style="width:100%; font-size:.9rem;" placeholder="No explanation yet.">{{ q.ai_explanation or '' }}</textarea>
+    <div class="btn-group mt-8">
+      <button class="btn btn-sm btn-primary" type="submit" name="action" value="save">Save my edit</button>
+      <button class="btn btn-sm" type="submit" name="action" value="regenerate"
+              onclick="return confirm('Throw away this explanation and prepare a new one?');">Make a new one</button>
+    </div>
+  </form>
+</div>
+{% else %}
+<div class="empty-state"><h3>{{ 'Nothing flagged 🎉' if only_flagged else 'No questions with on-screen text' }}</h3></div>
+{% endfor %}
+{% endblock %}

@@ -327,6 +327,7 @@ def questions(test_id):
         ai_configured=explain.ai_configured(),
         explainable=sum(1 for q in qs if (q.text or "").strip()),
         explained=sum(1 for q in qs if q.ai_explanation),
+        flagged=sum(1 for q in qs if (q.text or "").strip() and q.ai_explanation and explain.check_explanation(q)),
     )
 
 
@@ -341,6 +342,63 @@ def test_prepare_explanations(test_id):
     else:
         flash("This test is already queued for preparation.", "info")
     return redirect(url_for("teacher.questions", test_id=test.id))
+
+
+def _explanation_rows(test):
+    return [
+        {"q": q, "flags": explain.check_explanation(q)}
+        for q in test.questions if (q.text or "").strip()
+    ]
+
+
+@teacher_bp.route("/tests/<int:test_id>/explanations")
+@teacher_required
+def explanations(test_id):
+    test = get_owned_test(test_id)
+    rows = _explanation_rows(test)
+    flagged = sum(1 for r in rows if r["flags"])
+    only_flagged = request.args.get("flagged") == "1"
+    if only_flagged:
+        rows = [r for r in rows if r["flags"]]
+    return render_template(
+        "teacher/explanations.html", test=test, rows=rows,
+        flagged=flagged, only_flagged=only_flagged,
+    )
+
+
+@teacher_bp.route("/tests/<int:test_id>/explanations/<int:qid>", methods=["POST"])
+@teacher_required
+def explanation_update(test_id, qid):
+    test = get_owned_test(test_id)
+    q = Question.query.get_or_404(qid)
+    if q.test_id != test.id:
+        abort(404)
+    action = request.form.get("action", "save")
+    if action == "regenerate":
+        q.ai_explanation = None
+        db.session.commit()
+        explain.enqueue_tests(current_app._get_current_object(), [test.id])
+        flash(f"Question {q.q_number}: a fresh explanation is being prepared — refresh in a minute.", "success")
+    else:
+        q.ai_explanation = request.form.get("explanation", "").strip() or None
+        db.session.commit()
+        flash(f"Question {q.q_number}: explanation saved.", "success")
+    return redirect(url_for("teacher.explanations", test_id=test.id, flagged=request.form.get("flagged", "")) + f"#q{q.id}")
+
+
+@teacher_bp.route("/explanations/export")
+@teacher_required
+def explanations_export():
+    rows = []
+    for test in current_user.tests.order_by(Test.created_at):
+        for q in test.questions:
+            if (q.text or "").strip():
+                rows.append((test, q, explain.check_explanation(q) if q.ai_explanation else ["no explanation yet"]))
+    buf = excel_io.export_explanations(rows)
+    return send_file(
+        buf, as_attachment=True, download_name="explanations_for_review.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @teacher_bp.route("/tests/<int:test_id>/questions/new", methods=["GET", "POST"])

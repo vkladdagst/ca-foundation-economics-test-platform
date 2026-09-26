@@ -79,6 +79,33 @@ def sample_prompt():
     return _build_prompt(_SampleQuestion())
 
 
+def check_explanation(question):
+    """Automatic sanity checks on a saved explanation. Returns a list of
+    plain-English warnings (empty = nothing suspicious). This cannot judge
+    whether the economics is right -- it only catches the mistakes a machine
+    can see, so a person can focus their reading on the flagged ones."""
+    text = question.ai_explanation or ""
+    if not text.strip():
+        return ["no explanation yet"]
+    flags = []
+    match = re.search(r"Answer:\s*\(?([A-D])\)?", text)
+    if not match:
+        flags.append("does not start with 'Answer: (X)'")
+    elif match.group(1) != (question.correct_answer or "").upper():
+        flags.append(f"says the answer is ({match.group(1)}) but your key is ({question.correct_answer})")
+    if "confirm this with your teacher" in text.lower():
+        flags.append("the AI doubts your answer key: please check this question")
+    missing = [
+        letter for letter in "ABCD"
+        if letter != (question.correct_answer or "").upper() and question.option_text(letter) and f"({letter})" not in text
+    ]
+    if missing:
+        flags.append("does not discuss option " + ", ".join(missing))
+    if len(text.split()) > 200:
+        flags.append("longer than intended")
+    return flags
+
+
 # ---------------------------------------------------------------- Gemini calls
 
 last_failure = ""

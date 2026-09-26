@@ -45,6 +45,7 @@ EMAIL_FROM=your-address@gmail.com</pre>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-sm" type="submit">Test the AI connection</button>
       </form>
+      <a class="btn btn-sm" href="{{ url_for('teacher.explanations_export') }}">Download all explanations to review (Excel)</a>
     </div>
     <p class="small muted mt-8">New tests are prepared automatically when you publish them. Preparing runs in the background (about 6 seconds per question) so students just read saved text instantly.</p>
   {% else %}

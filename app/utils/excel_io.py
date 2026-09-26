@@ -402,3 +402,32 @@ def export_roster_credentials(entries):
     wb.save(buf)
     buf.seek(0)
     return buf
+
+
+def export_explanations(rows):
+    """rows: list of (test, question, flags). One line per question so the whole
+    set can be read (or shared for review) in one spreadsheet."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Explanations"
+    headers = [
+        "Test", "Chapter", "Q. No.", "Question", "Option A", "Option B", "Option C", "Option D",
+        "Answer Key", "Explanation", "Automatic warnings",
+    ]
+    _style_header(ws, headers)
+    for test, q, flags in rows:
+        ws.append([
+            test.title, test.chapter or "", q.q_number, q.text or "",
+            q.option_a or "", q.option_b or "", q.option_c or "", q.option_d or "",
+            q.correct_answer, q.ai_explanation or "", "; ".join(flags),
+        ])
+    wrap = Alignment(wrap_text=True, vertical="top")
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = wrap
+    for col, width in zip("ABCDEFGHIJK", (28, 20, 8, 50, 22, 22, 22, 22, 10, 70, 40)):
+        ws.column_dimensions[col].width = width
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf

@@ -39,12 +39,15 @@
     <strong>{{ explained }} of {{ explainable }}</strong> questions have an explanation ready
     {% if explained < explainable %}<span class="small muted"> — the rest are made when a student asks, or you can prepare them now.</span>{% endif %}
   </div>
-  {% if explained < explainable %}
-  <form method="post" action="{{ url_for('teacher.test_prepare_explanations', test_id=test.id) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn btn-sm" type="submit">Prepare explanations now</button>
-  </form>
-  {% endif %}
+  <div class="btn-group">
+    {% if explained %}<a class="btn btn-sm" href="{{ url_for('teacher.explanations', test_id=test.id) }}">Review / edit{% if flagged %} ({{ flagged }} flagged){% endif %}</a>{% endif %}
+    {% if explained < explainable %}
+    <form method="post" action="{{ url_for('teacher.test_prepare_explanations', test_id=test.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm" type="submit">Prepare explanations now</button>
+    </form>
+    {% endif %}
+  </div>
 </div>
 {% endif %}
 
