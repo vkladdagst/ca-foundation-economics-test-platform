@@ -1,34 +1,45 @@
-name: Keep Render app awake + alert on failure
+name: Database health check + alert on failure
 
-# Two jobs in one: keeps the free web service from spinning down (pinging
-# every 10 minutes, comfortably under Render's ~15-minute inactivity
-# threshold), AND actually verifies the database is reachable by hitting
-# /healthz (a real "SELECT 1" query) instead of just the homepage.
+# Health-monitoring only -- this does NOT try to keep the app continuously
+# awake anymore. It hits /healthz (a real "SELECT 1" query, not just the
+# homepage) every 2 hours to confirm the database is actually reachable.
 #
-# Critically, this workflow FAILS (non-zero exit) if that check doesn't
+# Why not more often (it used to be every 10 minutes): both Render's free
+# web service and Neon's free Postgres scale to zero after a few idle
+# minutes, which is exactly what keeps them free. Pinging every 10 minutes
+# never let either one of them *stay* asleep -- it woke the database back
+# up roughly 144 times a day, burning most of Neon's 100 free CU-hours/month
+# on nothing but this check, even with zero real students online overnight.
+# At every 2 hours (12 wake-ups/day) that overhead drops by about 90%,
+# leaving the free compute budget for actual student usage. The tradeoff:
+# whoever opens the app after a quiet stretch (e.g. the first student each
+# morning) sees a ~1-minute cold start instead of an instant load -- a
+# normal, expected cost of staying on free tiers, not a bug.
+#
+# This workflow still FAILS (non-zero exit) if the health check doesn't
 # come back healthy -- GitHub automatically emails the repo owner whenever
 # a scheduled workflow run fails, so an outage (expired database, crash,
-# anything) surfaces here within ~10 minutes instead of only being noticed
+# anything) surfaces here within ~2 hours instead of only being noticed
 # when someone tries to use the app. This is exactly what would have
-# caught the Postgres-expiry incident early.
+# caught the Postgres-expiry incident early (just slower than before).
 #
-# Two attempts, not one: if the app was already asleep, this very ping is
-# what wakes it up, and Render's free-tier cold start can take longer than
-# a single generous timeout. Without a retry, every cold start reads as a
+# Two attempts, not one: if the app was asleep, this very ping is what
+# wakes it up, and Render's free-tier cold start can take longer than a
+# single generous timeout. Without a retry, every cold start reads as a
 # false "outage" and emails the owner even though the app was actually
 # fine (it just needed a few more seconds) -- that's what was flooding the
-# inbox. Only fail (and alert) if the SECOND attempt, after the app has
-# had time to fully wake up, also fails.
+# inbox before. Only fail (and alert) if the SECOND attempt, after the app
+# has had time to fully wake up, also fails.
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "0 */2 * * *"
   workflow_dispatch: {}
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Check /healthz (pings the app awake AND verifies the database)
+      - name: Check /healthz (verifies the database is reachable)
         run: |
           url="https://ca-foundation-economics-test-platform.onrender.com/healthz"
 
