@@ -8,11 +8,20 @@
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#1a8a4c" stroke-width="3"><path d="M4 12l5 5L20 6"/></svg>
       </div>
       <h1>Test submitted successfully</h1>
-      <p class="muted">{{ test.title }}</p>
+      <p class="muted">{{ test.title }}{% if total_attempts > 1 %} · Attempt {{ attempt_no }}{% endif %}</p>
 
       {% if show_score %}
       <div class="big-score">{{ submission.score }} / {{ submission.max_score }}</div>
       <p class="muted">{{ submission.percentage }}% · {{ submission.correct_count }} correct, {{ submission.wrong_count }} wrong, {{ submission.unanswered_count }} unanswered</p>
+      {% if previous %}
+        {% set change = (submission.percentage - previous.percentage)|round(1) %}
+        <p class="small">
+          {% if change > 0 %}<strong style="color:var(--success)">▲ {{ change }} points better</strong>
+          {% elif change < 0 %}<strong style="color:var(--danger)">▼ {{ -change }} points lower</strong>
+          {% else %}<strong>Same score</strong>{% endif %}
+          than attempt {{ attempt_no - 1 }} ({{ previous.percentage }}%).
+        </p>
+      {% endif %}
       {% else %}
       <p class="mt-16">Your responses have been recorded. Your teacher will share results separately.</p>
       {% endif %}
@@ -25,6 +34,12 @@
       <div class="btn-group mt-24" style="justify-content:center;">
         {% if test.allow_review %}
         <a href="{{ url_for('student.mine', code=test.access_code) }}" class="btn">Review My Answers</a>
+        {% endif %}
+        {% if total_attempts > 1 %}
+        <a href="{{ url_for('student.progress', code=test.access_code) }}" class="btn">Compare My Attempts</a>
+        {% endif %}
+        {% if can_retry %}
+        <a href="{{ url_for('student.entry', code=test.access_code) }}" class="btn">Try Again</a>
         {% endif %}
         <a href="{{ url_for('student_auth.portal') }}" class="btn btn-primary">Back to My Tests</a>
       </div>

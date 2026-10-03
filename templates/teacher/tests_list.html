@@ -52,6 +52,26 @@
   </form>
 </div>
 
+<div class="card card-pad mb-16">
+  <div class="flex-between" style="gap:12px; flex-wrap:wrap; align-items:center;">
+    <span class="small muted">Retakes: let students attempt tests again and compare their attempts{% if chapter %} (only tests in “{{ chapter }}”){% endif %}.</span>
+    <div class="btn-group">
+      <form method="post" action="{{ url_for('teacher.tests_attempt_mode') }}" style="display:inline;"
+            onsubmit="return confirm('Allow students to retake {{ 'the tests in this chapter' if chapter else 'ALL of your tests' }}?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="mode" value="repeat"><input type="hidden" name="chapter" value="{{ chapter }}">
+        <button class="btn btn-sm" type="submit">Allow retakes</button>
+      </form>
+      <form method="post" action="{{ url_for('teacher.tests_attempt_mode') }}" style="display:inline;"
+            onsubmit="return confirm('Limit {{ 'the tests in this chapter' if chapter else 'ALL of your tests' }} to one attempt per student? Existing attempts are kept.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="mode" value="single"><input type="hidden" name="chapter" value="{{ chapter }}">
+        <button class="btn btn-sm" type="submit">One attempt only</button>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div class="card">
   {% if tests %}
   <div class="table-wrap">

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}My Attempts — {{ test.title }}{% endblock %}
+{% block body %}
+<div class="container-narrow" style="padding-top:40px; padding-bottom:60px; max-width:820px;">
+  <a href="{{ url_for('student_auth.portal') }}" class="small">← Back to My Tests</a>
+  <div class="flex-between" style="align-items:flex-start; gap:12px; flex-wrap:wrap;">
+    <div>
+      <h1>{{ test.title }}</h1>
+      <p class="muted small">{{ attempts|length }} attempt{{ '' if attempts|length == 1 else 's' }} so far</p>
+    </div>
+    {% if can_retry %}
+    <a class="btn btn-primary" href="{{ url_for('student.entry', code=test.access_code) }}">Try again</a>
+    {% endif %}
+  </div>
+
+  {% if show_scores %}
+  <div class="card card-pad mb-8" style="margin-bottom:24px;">
+    <p class="small muted" style="text-transform:uppercase; letter-spacing:.04em; font-weight:650; margin-bottom:12px;">Score by attempt</p>
+    {% for a in attempts %}
+    <div style="margin-bottom:10px;">
+      <div class="flex-between">
+        <span class="small">Attempt {{ a.no }}{% if a.is_best %} · <strong>best</strong>{% endif %}</span>
+        <span class="small"><strong>{{ a.sub.percentage }}%</strong>
+          {% if a.delta is not none %}
+            {% if a.delta > 0 %}<span style="color:var(--success)">▲ {{ a.delta }}</span>
+            {% elif a.delta < 0 %}<span style="color:var(--danger)">▼ {{ -a.delta }}</span>
+            {% else %}<span class="muted">no change</span>{% endif %}
+          {% endif %}
+        </span>
+      </div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" style="width: {{ [a.sub.percentage, 0]|max }}%;"></div></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="card" style="margin-bottom:24px;">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Date</th>{% if show_scores %}<th>Score</th><th>%</th><th>Correct</th><th>Wrong</th><th>Skipped</th>{% endif %}<th>Time</th><th></th></tr></thead>
+        <tbody>
+          {% for a in attempts %}
+          <tr>
+            <td>{{ a.no }}</td>
+            <td class="small muted">{{ a.sub.submitted_at | dt }}</td>
+            {% if show_scores %}
+            <td>{{ a.sub.score }} / {{ a.sub.max_score }}</td>
+            <td>{{ a.sub.percentage }}%</td>
+            <td style="color:var(--success)">{{ a.sub.correct_count }}</td>
+            <td style="color:var(--danger)">{{ a.sub.wrong_count }}</td>
+            <td class="muted">{{ a.sub.unanswered_count }}</td>
+            {% endif %}
+            <td class="small muted">{{ a.sub.time_taken_display }}</td>
+            <td>{% if test.allow_review %}<a class="btn btn-sm" href="{{ url_for('student.mine', code=test.access_code, ref=a.sub.reference_number) }}">Review</a>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if not show_scores %}
+  <p class="small muted">Your teacher will share scores separately for this test.</p>
+  {% endif %}
+
+  {% if summary %}
+  <div class="card card-pad" style="margin-bottom:24px;">
+    <p class="small muted" style="text-transform:uppercase; letter-spacing:.04em; font-weight:650; margin-bottom:12px;">
+      Attempt {{ attempts|length }} compared with attempt {{ attempts|length - 1 }}</p>
+    <div class="stat-grid" style="grid-template-columns:repeat(2, 1fr);">
+      <div class="stat-card"><div class="label">Now correct (were not)</div><div class="value" style="color:var(--success)">{{ summary.improved|length }}</div></div>
+      <div class="stat-card"><div class="label">Slipped (were correct)</div><div class="value" style="color:var(--danger)">{{ summary.slipped|length }}</div></div>
+      <div class="stat-card"><div class="label">Still not correct</div><div class="value">{{ summary.still_missing|length }}</div></div>
+      <div class="stat-card"><div class="label">Correct both times</div><div class="value">{{ summary.held|length }}</div></div>
+    </div>
+    {% if summary.still_missing or summary.slipped %}
+    <p class="small" style="margin-top:12px;"><strong>Revise these questions next:</strong>
+      {% for n in (summary.slipped + summary.still_missing)|sort %}Q{{ n }}{{ ', ' if not loop.last }}{% endfor %}
+    </p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Question</th>{% for a in attempts %}<th class="text-center">Attempt {{ a.no }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for g in grid %}
+          <tr>
+            <td>Q{{ g.q.q_number }}</td>
+            {% for cell in g.cells %}
+            <td class="text-center">
+              {% if cell == 'correct' %}<span class="badge badge-correct">✓</span>
+              {% elif cell == 'wrong' %}<span class="badge badge-wrong">✗</span>
+              {% else %}<span class="badge badge-unanswered">–</span>{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

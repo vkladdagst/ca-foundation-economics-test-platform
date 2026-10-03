@@ -13,7 +13,10 @@ from app.decorators import teacher_required
 from app.extensions import db
 from app.models import Test, Question, Submission, Response, Student, PushSubscription, Teacher, real_explanation_text
 from app.utils import excel_io, explain, mail, push
-from app.utils.grading import test_statistics, question_statistics, compute_ranks, recalculate_test
+from app.utils.grading import (
+    attempt_counts, best_per_student, compute_ranks, question_statistics,
+    recalculate_test, student_key, test_statistics,
+)
 
 teacher_bp = Blueprint("teacher", __name__, template_folder="../../templates/teacher")
 
@@ -92,6 +95,29 @@ def tests_list():
         "teacher/tests_list.html", tests=tests, q=q, status=status,
         chapter=chapter, available_chapters=_distinct_chapters(), sort=sort,
     )
+
+
+@teacher_bp.route("/tests/attempt-mode", methods=["POST"])
+@teacher_required
+def tests_attempt_mode():
+    """Switch every one of this teacher's tests (optionally just one chapter)
+    between 'one attempt per student' and 'students may retake'."""
+    mode = request.form.get("mode")
+    if mode not in ("repeat", "single"):
+        abort(400)
+    chapter = request.form.get("chapter", "").strip()
+    query = Test.query.filter_by(teacher_id=current_user.id)
+    if chapter:
+        query = query.filter(Test.chapter == chapter)
+    changed = query.update({"one_attempt_only": mode == "single"}, synchronize_session=False)
+    db.session.commit()
+    scope = f'in "{chapter}"' if chapter else "(all chapters)"
+    flash(
+        f"{changed} test(s) {scope} now "
+        + ("allow students to retake them." if mode == "repeat" else "allow only one attempt per student."),
+        "success",
+    )
+    return redirect(url_for("teacher.tests_list", chapter=chapter) if chapter else url_for("teacher.tests_list"))
 
 
 def _apply_test_form(test, form):
@@ -594,8 +620,11 @@ def results(test_id):
         query = query.filter(db.or_(
             Submission.student_name.ilike(like), Submission.roll_number.ilike(like),
         ))
-    submissions = query.all()
+    all_attempts = query.all()
+    counts = attempt_counts(all_attempts)
+    submissions = best_per_student(all_attempts)
     ranked = compute_ranks(submissions)
+    attempts_of = {s.id: counts[student_key(s)] for s in submissions}
 
     if sort == "name":
         ranked.sort(key=lambda t: (t[1].student_name or "").lower())
@@ -610,7 +639,7 @@ def results(test_id):
     stats = test_statistics(test)
     return render_template(
         "teacher/results.html", test=test, ranked=ranked, stats=stats,
-        search=search, sort=sort,
+        search=search, sort=sort, attempts_of=attempts_of,
     )
 
 
@@ -618,7 +647,7 @@ def results(test_id):
 @teacher_required
 def results_export(test_id):
     test = get_owned_test(test_id)
-    submissions = list(test.submissions.filter_by(status="submitted"))
+    submissions = best_per_student(list(test.submissions.filter_by(status="submitted")))
     ranked = compute_ranks(submissions)
     buf = excel_io.export_results(test, ranked)
     return send_file(
@@ -656,7 +685,11 @@ def student_detail(test_id, submission_id):
             "is_correct": r.is_correct if r else None,
             "marks_awarded": r.marks_awarded if r else 0,
         })
-    return render_template("teacher/student_detail.html", test=test, submission=submission, rows=rows)
+    attempts = []
+    if submission.student_id:
+        attempts = list(test.submissions.filter_by(status="submitted", student_id=submission.student_id)
+                        .order_by(Submission.submitted_at, Submission.id))
+    return render_template("teacher/student_detail.html", test=test, submission=submission, rows=rows, attempts=attempts)
 
 
 @teacher_bp.route("/tests/<int:test_id>/recalculate", methods=["POST"])

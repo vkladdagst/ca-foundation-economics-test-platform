@@ -2,7 +2,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_user, logout_user
 
 from app.decorators import student_required
-from app.models import Student, Test
+from app.models import Student, Submission, Test
 
 student_auth_bp = Blueprint("student_auth", __name__, url_prefix="/student")
 
@@ -60,9 +60,15 @@ def portal():
     ).order_by(Test.created_at.desc()).all()
     visible_tests = [t for t in all_tests if t.visible_to_batch(current_user.batch)]
 
-    my_submissions = {
-        s.test_id: s for s in current_user.submissions.filter_by(status="submitted")
-    }
+    # Tests that allow repeat attempts can have several submissions per
+    # student. my_submissions holds the LATEST one per test (what the student
+    # is currently scoring); attempt_info adds how many tries and the best %.
+    my_submissions, attempt_info = {}, {}
+    for sub in current_user.submissions.filter_by(status="submitted").order_by(Submission.submitted_at, Submission.id):
+        my_submissions[sub.test_id] = sub
+        info = attempt_info.setdefault(sub.test_id, {"count": 0, "best": 0.0})
+        info["count"] += 1
+        info["best"] = max(info["best"], sub.percentage or 0.0)
 
     progress, chapter_progress = _build_progress(visible_tests, my_submissions)
 
@@ -88,7 +94,7 @@ def portal():
         ]
 
     return render_template(
-        "student/portal.html", tests=tests, my_submissions=my_submissions,
+        "student/portal.html", tests=tests, my_submissions=my_submissions, attempt_info=attempt_info,
         available_chapters=available_chapters, chapter=chapter, q=q,
         progress=progress, chapter_progress=chapter_progress,
     )

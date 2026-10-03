@@ -90,6 +90,8 @@
             <td>
               {% if sub %}
                 {% if t.show_result_immediately %}{{ sub.score }} / {{ sub.max_score }} ({{ sub.percentage }}%){% else %}Submitted{% endif %}
+                {% set info = attempt_info.get(t.id) %}
+                {% if info and info.count > 1 %}<div class="small muted">{{ info.count }} attempts{% if t.show_result_immediately %} · best {{ info.best }}%{% endif %}</div>{% endif %}
               {% else %}
                 <span class="muted">Not attempted</span>
               {% endif %}
@@ -97,6 +99,9 @@
             <td>
               {% if sub %}
                 {% if t.allow_review %}<a class="btn btn-sm" href="{{ url_for('student.mine', code=t.access_code) }}">Review Answers</a>{% endif %}
+                {% set info = attempt_info.get(t.id) %}
+                {% if info and info.count > 1 %}<a class="btn btn-sm" href="{{ url_for('student.progress', code=t.access_code) }}">Compare</a>{% endif %}
+                {% if not t.one_attempt_only and t.status == 'active' %}<a class="btn btn-sm btn-primary" href="{{ url_for('student.entry', code=t.access_code) }}">Try again</a>{% endif %}
               {% elif t.status == 'active' %}
                 <a class="btn btn-sm btn-primary" href="{{ url_for('student.entry', code=t.access_code) }}">Start</a>
               {% else %}

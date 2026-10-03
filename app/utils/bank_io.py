@@ -381,6 +381,7 @@ def _apply_test(tp, delete_missing, stats, log):
             test_number=tp["test_number"], chapter=tp["chapter"],
             marks_per_question_default=tp["default_marks"],
             negative_marks_default=tp["default_neg"], status="draft",
+            one_attempt_only=False,   # practice bank: students may retake and compare attempts
         )
         db.session.add(test)
         db.session.flush()

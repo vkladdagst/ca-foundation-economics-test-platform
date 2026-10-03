@@ -4,6 +4,15 @@
 <div class="container-narrow" style="padding-top:40px; padding-bottom:60px; max-width:760px;">
   <a href="{{ url_for('student_auth.portal') }}" class="small">← Back to My Tests</a>
   <h1>{{ test.title }}</h1>
+  {% if attempts|length > 1 %}
+  <p class="small muted">
+    Showing attempt {{ attempt_no }} of {{ attempts|length }}:
+    {% for a in attempts %}
+      {% if a.id == submission.id %}<strong>{{ loop.index }}</strong>{% else %}<a href="{{ url_for('student.mine', code=test.access_code, ref=a.reference_number) }}">{{ loop.index }}</a>{% endif %}{{ ' · ' if not loop.last }}
+    {% endfor %}
+    · <a href="{{ url_for('student.progress', code=test.access_code) }}">Compare attempts</a>
+  </p>
+  {% endif %}
 
   <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);">
     <div class="stat-card"><div class="label">Score</div><div class="value">{{ submission.score }} / {{ submission.max_score }}</div></div>

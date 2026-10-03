@@ -57,7 +57,7 @@
   {% if ranked %}
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Rank</th><th>Student</th><th>Roll No.</th><th>Correct</th><th>Wrong</th><th>Unanswered</th><th>Score</th><th>%</th><th>Time Taken</th><th></th></tr></thead>
+      <thead><tr><th>Rank</th><th>Student</th><th>Roll No.</th><th>Correct</th><th>Wrong</th><th>Unanswered</th><th>Score</th><th>%</th><th>Time Taken</th><th>Attempts</th><th></th></tr></thead>
       <tbody>
         {% for rank, s in ranked %}
         <tr>
@@ -70,6 +70,7 @@
           <td><strong>{{ s.score }}</strong> / {{ s.max_score }}</td>
           <td>{{ s.percentage }}%</td>
           <td class="small muted">{{ s.time_taken_display }}</td>
+          <td class="small">{{ attempts_of.get(s.id, 1) }}</td>
           <td><a class="btn btn-sm" href="{{ url_for('teacher.student_detail', test_id=test.id, submission_id=s.id) }}">View</a></td>
         </tr>
         {% endfor %}

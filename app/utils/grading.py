@@ -73,6 +73,34 @@ def recalculate_test(test):
     return count
 
 
+def _student_key(submission):
+    return submission.student_id if submission.student_id else ("roll", submission.roll_number or submission.id)
+
+
+def best_per_student(submissions):
+    """When a test allows repeat attempts, count each student once: their
+    highest-scoring attempt (ties go to the most recent one)."""
+    best = {}
+    for s in submissions:
+        key = _student_key(s)
+        current = best.get(key)
+        if current is None or (s.score, s.submitted_at or s.started_at) > (current.score, current.submitted_at or current.started_at):
+            best[key] = s
+    return list(best.values())
+
+
+def attempt_counts(submissions):
+    """{student key: number of submitted attempts}, looked up with student_key()."""
+    counts = {}
+    for s in submissions:
+        key = _student_key(s)
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+student_key = _student_key
+
+
 def compute_ranks(submissions):
     """Assign dense ranks (1-based, ties share rank) to a list of submissions
     sorted by score descending. Returns list of (rank, submission) tuples."""
@@ -97,7 +125,7 @@ def _format_duration(seconds):
 
 
 def test_statistics(test):
-    subs = list(test.submissions.filter_by(status="submitted"))
+    subs = best_per_student(list(test.submissions.filter_by(status="submitted")))
     if not subs:
         return {
             "attempted": 0, "average": 0, "highest": 0, "lowest": 0,

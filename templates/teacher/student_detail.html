@@ -14,6 +14,14 @@
   </p>
 </div>
 
+{% if attempts|length > 1 %}
+<p class="small muted">All attempts by this student:
+  {% for a in attempts %}
+    {% if a.id == submission.id %}<strong>#{{ loop.index }} ({{ a.percentage }}%)</strong>{% else %}<a href="{{ url_for('teacher.student_detail', test_id=test.id, submission_id=a.id) }}">#{{ loop.index }} ({{ a.percentage }}%)</a>{% endif %}{{ ' · ' if not loop.last }}
+  {% endfor %}
+</p>
+{% endif %}
+
 <div class="stat-grid stat-grid-5">
   <div class="stat-card"><div class="label">Score</div><div class="value">{{ submission.score }} / {{ submission.max_score }}</div></div>
   <div class="stat-card"><div class="label">Percentage</div><div class="value">{{ submission.percentage }}%</div></div>

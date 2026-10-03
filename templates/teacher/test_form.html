@@ -82,7 +82,7 @@
     </div>
     <div class="checkbox-row">
       <input type="checkbox" id="one_attempt_only" name="one_attempt_only" {{ 'checked' if not test or test.one_attempt_only }}>
-      <label for="one_attempt_only">Allow only one submission per student</label>
+      <label for="one_attempt_only">Allow only one submission per student <span class="form-hint">(untick to let students retake this test; they see their attempts compared, and the results table ranks each student once, by their best attempt)</span></label>
     </div>
     <div class="checkbox-row">
       <input type="checkbox" id="allow_review" name="allow_review" {{ 'checked' if not test or test.allow_review }}>

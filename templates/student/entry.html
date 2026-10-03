@@ -20,9 +20,17 @@
 
     <p class="small" style="text-align:center;">Logged in as <strong>{{ current_user.name }}</strong> ({{ current_user.roll_number }})</p>
 
+    {% if attempts %}
+    <p class="small" style="text-align:center;">
+      You have taken this test {{ attempts|length }} time{{ '' if attempts|length == 1 else 's' }}.
+      {% if test.show_result_immediately %}Last score: <strong>{{ attempts[-1].percentage }}%</strong>.{% endif %}
+      <a href="{{ url_for('student.progress', code=test.access_code) }}">See all attempts</a>
+    </p>
+    {% endif %}
+
     <form method="post" action="{{ url_for('student.start', code=test.access_code) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="btn btn-primary btn-block btn-lg">Start Test</button>
+      <button type="submit" class="btn btn-primary btn-block btn-lg">{% if attempts %}Start Attempt {{ attempts|length + 1 }}{% else %}Start Test{% endif %}</button>
     </form>
   </div>
 </div>
