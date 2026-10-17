@@ -1,8 +1,9 @@
 name: Database health check + alert on failure
 
 # Health-monitoring only -- this does NOT try to keep the app continuously
-# awake anymore. It hits /healthz (a real "SELECT 1" query, not just the
-# homepage) every 2 hours to confirm the database is actually reachable.
+# awake anymore. It hits /healthz?db=1 (a real "SELECT 1" query; plain /healthz
+# deliberately skips the database) a few times a day to confirm the database
+# is actually reachable.
 #
 # Why not more often (it used to be every 10 minutes): both Render's free
 # web service and Neon's free Postgres scale to zero after a few idle
@@ -41,7 +42,7 @@ jobs:
     steps:
       - name: Check /healthz (verifies the database is reachable)
         run: |
-          url="https://ca-foundation-economics-test-platform.onrender.com/healthz"
+          url="https://ca-foundation-economics-test-platform.onrender.com/healthz?db=1"
 
           check() {
             curl -sS --max-time 75 -w "\n%{http_code}" "$url" || echo -e "\n000"

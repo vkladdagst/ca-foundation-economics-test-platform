@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, Response, jsonify, render_template, send_from_directory
+from flask import Flask, Response, jsonify, render_template, request, send_from_directory
 
 from config import Config
 from app.extensions import db, login_manager, csrf
@@ -84,17 +84,19 @@ def create_app(config_class=Config):
 
     @app.route("/healthz")
     def healthz():
-        """A real check, not just 'did the process answer' -- runs an actual
-        database query. This is what the keep-alive workflow pings; if the
-        database is unreachable (expired, network issue, wrong credentials,
-        anything) this returns 503 and the workflow run fails, which makes
-        GitHub email the repo owner automatically. That's what would have
-        caught the Postgres-expiry incident within ~10 minutes instead of
-        only being noticed when someone tried to use the app."""
+        """Cheap by default: answers without touching the database. Any uptime
+        monitor that calls this every few minutes would otherwise wake the
+        free-tier Neon database each time and burn its monthly compute budget
+        on nothing. Add ?db=1 for the real check (an actual SELECT 1) -- the
+        GitHub workflow does, a few times a day; if the database is
+        unreachable it returns 503, the workflow run fails and GitHub emails
+        the repo owner."""
+        # Render sets RENDER_GIT_COMMIT to the commit that is actually running.
+        commit = os.environ.get("RENDER_GIT_COMMIT", "")[:7]
+        if request.args.get("db") != "1":
+            return jsonify({"status": "ok", "database": "not checked", "commit": commit}), 200
         try:
             db.session.execute(db.text("SELECT 1"))
-            # Render sets RENDER_GIT_COMMIT to the commit that is actually running.
-            commit = os.environ.get("RENDER_GIT_COMMIT", "")[:7]
             return jsonify({"status": "ok", "database": "connected", "commit": commit}), 200
         except Exception as exc:
             return jsonify({"status": "error", "database": "unreachable", "detail": str(exc)[:200]}), 503
