@@ -1,4 +1,5 @@
 import json
+import threading
 import time
 from datetime import datetime, date
 
@@ -301,6 +302,78 @@ def test_publish(test_id):
     suffix = f" Notified students ({', '.join(notes)})." if notes else " Share the link/code with students."
     flash("Test published." + suffix, "success")
     return redirect(url_for("teacher.tests_list"))
+
+
+def _notify_chapter_published(app, student_ids, teacher_name, chapter, count, link):
+    """One email + one push per student for a whole chapter's worth of newly
+    published tests (instead of one per test), sent in the background."""
+    with app.app_context():
+        try:
+            students = Student.query.filter(Student.id.in_(student_ids)).all()
+            plural = "s" if count != 1 else ""
+            if mail.mail_configured():
+                recipients = [(st.email, st.name) for st in students]
+
+                def body(name):
+                    return (
+                        f"Hi {name},\n\n"
+                        f"{count} new test{plural} published: {chapter}\n\n"
+                        f"Log in and pick a test here: {link}\n\n"
+                        f"— {teacher_name}"
+                    )
+
+                mail.send_bulk(recipients, f"{count} new test{plural} published: {chapter}", body)
+            push.notify_specific_students(
+                students, "New tests published", f"{count} new test{plural}: {chapter}", link,
+            )
+        except Exception:
+            current_app.logger.exception("Chapter publish notification failed")
+        finally:
+            db.session.remove()
+
+
+@teacher_bp.route("/tests/publish-chapter", methods=["POST"])
+@teacher_required
+def tests_publish_chapter():
+    """Publish every draft test (that has questions) in one chapter at once,
+    and tell students once for the whole chapter."""
+    chapter = request.form.get("chapter", "").strip()
+    if not chapter:
+        flash("Choose a chapter first (use the Chapter filter), then publish its tests together.", "error")
+        return redirect(url_for("teacher.tests_list"))
+    drafts = Test.query.filter_by(teacher_id=current_user.id, chapter=chapter, status="draft").all()
+    counts = dict(
+        db.session.query(Question.test_id, func.count(Question.id))
+        .filter(Question.test_id.in_([t.id for t in drafts] or [0])).group_by(Question.test_id).all()
+    )
+    ready = [t for t in drafts if counts.get(t.id, 0) > 0]
+    if not ready:
+        flash(f"There are no draft tests with questions in \"{chapter}\" to publish.", "error")
+        return redirect(url_for("teacher.tests_list", chapter=chapter))
+    for t in ready:
+        t.status = "active"
+    db.session.commit()
+
+    batches, open_to_all = set(), False
+    for t in ready:
+        if t.target_batches:
+            batches.update(t.target_batches)
+        else:
+            open_to_all = True
+    audience = Student.query if open_to_all else Student.query.filter(Student.batch.in_(batches))
+    student_ids = [row[0] for row in audience.with_entities(Student.id).all()]
+    if student_ids:
+        threading.Thread(
+            target=_notify_chapter_published,
+            args=(current_app._get_current_object(), student_ids, current_user.name, chapter, len(ready),
+                  url_for("student_auth.portal", _external=True)),
+            daemon=True,
+        ).start()
+    flash(
+        f"Published {len(ready)} test(s) in \"{chapter}\". Students get one notification for the whole chapter.",
+        "success",
+    )
+    return redirect(url_for("teacher.tests_list", chapter=chapter))
 
 
 @teacher_bp.route("/tests/<int:test_id>/unpublish", methods=["POST"])

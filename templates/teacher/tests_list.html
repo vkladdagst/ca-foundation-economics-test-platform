@@ -54,6 +54,22 @@
 
 <div class="card card-pad mb-16">
   <div class="flex-between" style="gap:12px; flex-wrap:wrap; align-items:center;">
+    {% if chapter %}
+    <span class="small muted">Publish every draft test in “{{ chapter }}” together. Students get <strong>one</strong> notification for the whole chapter.</span>
+    <form method="post" action="{{ url_for('teacher.tests_publish_chapter') }}" style="display:inline;"
+          onsubmit="return confirm('Publish all draft tests in this chapter and notify students once?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="chapter" value="{{ chapter }}">
+      <button class="btn btn-sm btn-success" type="submit">Publish all drafts in this chapter</button>
+    </form>
+    {% else %}
+    <span class="small muted">To publish a whole chapter at once, pick it in the <strong>Chapter</strong> filter above, then use the publish button that appears here.</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card card-pad mb-16">
+  <div class="flex-between" style="gap:12px; flex-wrap:wrap; align-items:center;">
     <span class="small muted">Retakes: let students attempt tests again and compare their attempts{% if chapter %} (only tests in “{{ chapter }}”){% endif %}.</span>
     <div class="btn-group">
       <form method="post" action="{{ url_for('teacher.tests_attempt_mode') }}" style="display:inline;"
@@ -90,6 +106,13 @@
           <td><span class="mono small">{{ t.access_code }}</span></td>
           <td>
             <div class="btn-group">
+              {% if t.status == 'draft' and question_counts.get(t.id, 0) %}
+              <form method="post" action="{{ url_for('teacher.test_publish', test_id=t.id) }}" style="display:inline;"
+                    onsubmit="return confirm('Publish &quot;{{ t.title }}&quot; and notify students?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-success" type="submit">Publish</button>
+              </form>
+              {% endif %}
               <a class="btn btn-sm" href="{{ url_for('teacher.questions', test_id=t.id) }}">Questions</a>
               <a class="btn btn-sm" href="{{ url_for('teacher.results', test_id=t.id) }}">Results</a>
               <a class="btn btn-sm" href="{{ url_for('teacher.test_edit', test_id=t.id) }}">Edit</a>
