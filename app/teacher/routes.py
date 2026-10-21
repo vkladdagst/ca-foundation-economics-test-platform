@@ -7,6 +7,7 @@ from flask import (
     send_file, url_for, current_app
 )
 from flask_login import current_user
+from sqlalchemy import func
 from werkzeug.utils import secure_filename
 
 from app.decorators import teacher_required
@@ -91,9 +92,24 @@ def tests_list():
     query = query.order_by(sort_columns.get(sort, Test.created_at.desc()))
 
     tests = query.all()
+    # One grouped query each instead of two queries per test row (with a few
+    # hundred tests the per-row version made this page take minutes).
+    ids = [t.id for t in tests]
+    question_counts, submitted_counts = {}, {}
+    if ids:
+        question_counts = dict(
+            db.session.query(Question.test_id, func.count(Question.id))
+            .filter(Question.test_id.in_(ids)).group_by(Question.test_id).all()
+        )
+        submitted_counts = dict(
+            db.session.query(Submission.test_id, func.count(Submission.id))
+            .filter(Submission.test_id.in_(ids), Submission.status == "submitted")
+            .group_by(Submission.test_id).all()
+        )
     return render_template(
         "teacher/tests_list.html", tests=tests, q=q, status=status,
         chapter=chapter, available_chapters=_distinct_chapters(), sort=sort,
+        question_counts=question_counts, submitted_counts=submitted_counts,
     )
 
 
