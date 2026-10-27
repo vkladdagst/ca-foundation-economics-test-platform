@@ -1,3 +1,5 @@
+import re
+
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_user, logout_user
 
@@ -5,6 +7,11 @@ from app.decorators import student_required
 from app.models import Student, Submission, Test
 
 student_auth_bp = Blueprint("student_auth", __name__, url_prefix="/student")
+
+
+def _natural_key(text):
+    """Sort 'Ch 2 ...' before 'Ch 10 ...' and 'Test 2' before 'Test 10'."""
+    return [int(p) if p.isdigit() else p.lower() for p in re.split(r"(\d+)", text or "")]
 
 
 @student_auth_bp.route("/help")
@@ -59,6 +66,7 @@ def portal():
         Test.status.in_(["active", "closed"])
     ).order_by(Test.created_at.desc()).all()
     visible_tests = [t for t in all_tests if t.visible_to_batch(current_user.batch)]
+    visible_tests.sort(key=lambda t: (_natural_key(t.chapter), _natural_key(t.title)))
 
     # Tests that allow repeat attempts can have several submissions per
     # student. my_submissions holds the LATEST one per test (what the student
@@ -77,7 +85,7 @@ def portal():
     # a free-text search) to just what they're working on right now. These
     # filters only affect the list below; the progress summary above always
     # reflects everything visible, not the current filter.
-    available_chapters = sorted({t.chapter for t in visible_tests if t.chapter})
+    available_chapters = sorted({t.chapter for t in visible_tests if t.chapter}, key=_natural_key)
     chapter = request.args.get("chapter", "")
     q = request.args.get("q", "").strip()
 
@@ -119,7 +127,7 @@ def _build_progress(visible_tests, my_submissions):
                 entry["score_count"] += 1
 
     chapter_progress = []
-    for name in sorted(chapters):
+    for name in sorted(chapters, key=_natural_key):
         e = chapters[name]
         chapter_progress.append({
             "chapter": name, "total": e["total"], "attempted": e["attempted"],

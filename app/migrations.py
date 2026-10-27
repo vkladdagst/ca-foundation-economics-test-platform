@@ -38,6 +38,47 @@ _WIDENED_COLUMNS = [
 ]
 
 
+# Chapters 8-10 were first imported with titles/chapter labels in a different
+# style from chapters 1-7 ("Ch8 U1 - Money Demand - Test 1" under the chapter
+# "Chapter 8 Unit 1 - Money Demand"). Rename them in place so students see one
+# consistent scheme. Renaming keeps each test's id, access code and every
+# student attempt. (old title prefix, new title prefix, chapter label)
+_TEST_RENAMES = [
+    ("Ch8 U1 - Money Demand", "Ch 8 Unit 1 - Money Demand", "Ch 8 - Money Market"),
+    ("Ch8 U2 - Money Supply", "Ch 8 Unit 2 - Money Supply", "Ch 8 - Money Market"),
+    ("Ch8 U3 - Monetary Policy", "Ch 8 Unit 3 - Monetary Policy", "Ch 8 - Money Market"),
+    ("Ch9 U1 - Theories of Trade", "Ch 9 Unit 1 - Theories of International Trade", "Ch 9 - International Trade"),
+    ("Ch9 U2 - Instruments of Trade Policy", "Ch 9 Unit 2 - Instruments of Trade Policy", "Ch 9 - International Trade"),
+    ("Ch9 U3 - Trade Negotiations", "Ch 9 Unit 3 - Trade Negotiations", "Ch 9 - International Trade"),
+    ("Ch9 U4 - Exchange Rate", "Ch 9 Unit 4 - Exchange Rate", "Ch 9 - International Trade"),
+    ("Ch9 U5 - International Capital Movements", "Ch 9 Unit 5 - International Capital Movements", "Ch 9 - International Trade"),
+    ("Ch10 - Indian Economy", "Ch 10 - Indian Economy", "Ch 10 - Indian Economy"),
+]
+
+
+def _rename_bank_tests():
+    from app.models import Test
+
+    candidates = Test.query.filter(db.or_(
+        Test.title.like("Ch8 U%"), Test.title.like("Ch9 U%"), Test.title.like("Ch10 - %"),
+    )).all()
+    changed = 0
+    for test in candidates:
+        for old, new, chapter in _TEST_RENAMES:
+            if not test.title.startswith(old + " - Test "):
+                continue
+            new_title = new + test.title[len(old):]
+            clash = Test.query.filter_by(teacher_id=test.teacher_id, title=new_title).first()
+            if clash is None:
+                test.title = new_title
+                test.chapter = chapter
+                changed += 1
+            break
+    if changed:
+        db.session.commit()
+        logger.info("Migration: renamed %s chapter 8-10 tests to the standard naming", changed)
+
+
 def run_light_migrations(app):
     with app.app_context():
         dialect = db.engine.dialect.name
@@ -70,5 +111,8 @@ def run_light_migrations(app):
                     logger.info("Migration: widening %s.%s to %s", table, column, new_type)
                     with db.engine.begin() as conn:
                         conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN {column} TYPE {new_type}"))
+
+            _rename_bank_tests()
         except Exception:
+            db.session.rollback()
             logger.exception("Light migration check failed — continuing startup regardless")

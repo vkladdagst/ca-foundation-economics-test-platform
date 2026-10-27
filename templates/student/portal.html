@@ -38,7 +38,7 @@
     {% for c in chapter_progress %}
     <div class="mb-8">
       <div class="flex-between">
-        <span class="small">{{ c.chapter }}</span>
+        <a class="small" href="{{ url_for('student_auth.portal', chapter=c.chapter) }}#tests">{{ c.chapter }}</a>
         <span class="small muted">{{ c.attempted }} / {{ c.total }}{% if c.avg_percentage is not none %} · avg {{ c.avg_percentage }}%{% endif %}</span>
       </div>
       <div class="progress-bar-track">
@@ -75,31 +75,33 @@
   {% endif %}
 
   {% if tests %}
-  <div class="card">
+  <style>
+    .portal-table td, .portal-table th { white-space: normal; }
+    .portal-table td.actions .btn { margin: 2px 4px 2px 0; }
+  </style>
+  <div class="card" id="tests">
     <div class="table-wrap">
-      <table>
-        <thead><tr><th>Subject</th><th>Chapter</th><th>Test</th><th>Status</th><th>Your Result</th><th></th></tr></thead>
+      <table class="portal-table">
+        <thead><tr><th>Test and your result</th><th></th></tr></thead>
         <tbody>
           {% for t in tests %}
           {% set sub = my_submissions.get(t.id) %}
+          {% set info = attempt_info.get(t.id) %}
           <tr>
-            <td class="small muted">{{ t.subject }}</td>
-            <td class="small muted">{{ t.chapter or '—' }}</td>
-            <td>{{ t.title }}</td>
-            <td><span class="badge badge-{{ t.status }}">{{ t.status }}</span></td>
             <td>
-              {% if sub %}
-                {% if t.show_result_immediately %}{{ sub.score }} / {{ sub.max_score }} ({{ sub.percentage }}%){% else %}Submitted{% endif %}
-                {% set info = attempt_info.get(t.id) %}
-                {% if info and info.count > 1 %}<div class="small muted">{{ info.count }} attempts{% if t.show_result_immediately %} · best {{ info.best }}%{% endif %}</div>{% endif %}
-              {% else %}
-                <span class="muted">Not attempted</span>
-              {% endif %}
+              {{ t.title }}{% if t.status == 'closed' %} <span class="badge badge-closed">closed</span>{% endif %}
+              <div class="small muted">
+                {% if sub %}
+                  {% if t.show_result_immediately %}<strong>{{ sub.score }} / {{ sub.max_score }} ({{ sub.percentage }}%)</strong>{% else %}Submitted{% endif %}
+                  {% if info and info.count > 1 %} · {{ info.count }} attempts{% if t.show_result_immediately %} · best {{ info.best }}%{% endif %}{% endif %}
+                {% else %}
+                  Not attempted
+                {% endif %}
+              </div>
             </td>
-            <td>
+            <td class="actions">
               {% if sub %}
                 {% if t.allow_review %}<a class="btn btn-sm" href="{{ url_for('student.mine', code=t.access_code) }}">Review Answers</a>{% endif %}
-                {% set info = attempt_info.get(t.id) %}
                 {% if info and info.count > 1 %}<a class="btn btn-sm" href="{{ url_for('student.progress', code=t.access_code) }}">Compare</a>{% endif %}
                 {% if not t.one_attempt_only and t.status == 'active' %}<a class="btn btn-sm btn-primary" href="{{ url_for('student.entry', code=t.access_code) }}">Try again</a>{% endif %}
               {% elif t.status == 'active' %}
