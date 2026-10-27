@@ -382,6 +382,8 @@ def _apply_test(tp, delete_missing, stats, log):
             marks_per_question_default=tp["default_marks"],
             negative_marks_default=tp["default_neg"], status="draft",
             one_attempt_only=False,   # practice bank: students may retake and compare attempts
+            # Without this the student sees only A/B/C/D buttons ("printed paper" mode).
+            questions_visible=any((qp["row"]["text"] or "").strip() for qp in tp["questions"]),
         )
         db.session.add(test)
         db.session.flush()

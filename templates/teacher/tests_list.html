@@ -70,6 +70,26 @@
 
 <div class="card card-pad mb-16">
   <div class="flex-between" style="gap:12px; flex-wrap:wrap; align-items:center;">
+    <span class="small muted">Question display: show each question and its options on the student's screen{% if chapter %} (only tests in “{{ chapter }}”){% endif %}. Paper mode shows only A/B/C/D buttons.</span>
+    <div class="btn-group">
+      <form method="post" action="{{ url_for('teacher.tests_display_mode') }}" style="display:inline;"
+            onsubmit="return confirm('Show the questions on screen for {{ 'the tests in this chapter' if chapter else 'ALL of your tests that have question text' }}?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="mode" value="screen"><input type="hidden" name="chapter" value="{{ chapter }}">
+        <button class="btn btn-sm btn-success" type="submit">Show questions on screen</button>
+      </form>
+      <form method="post" action="{{ url_for('teacher.tests_display_mode') }}" style="display:inline;"
+            onsubmit="return confirm('Switch {{ 'the tests in this chapter' if chapter else 'ALL of your tests' }} to printed-paper mode (students see only A/B/C/D)?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="mode" value="paper"><input type="hidden" name="chapter" value="{{ chapter }}">
+        <button class="btn btn-sm" type="submit">Paper mode</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card card-pad mb-16">
+  <div class="flex-between" style="gap:12px; flex-wrap:wrap; align-items:center;">
     <span class="small muted">Retakes: let students attempt tests again and compare their attempts{% if chapter %} (only tests in “{{ chapter }}”){% endif %}.</span>
     <div class="btn-group">
       <form method="post" action="{{ url_for('teacher.tests_attempt_mode') }}" style="display:inline;"

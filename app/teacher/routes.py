@@ -304,6 +304,35 @@ def test_publish(test_id):
     return redirect(url_for("teacher.tests_list"))
 
 
+@teacher_bp.route("/tests/display-mode", methods=["POST"])
+@teacher_required
+def tests_display_mode():
+    """Switch tests (optionally just one chapter) between showing the questions
+    and options on the student's screen, and the printed-paper workflow where
+    students only see A/B/C/D buttons. 'screen' only touches tests whose
+    questions actually have text."""
+    mode = request.form.get("mode")
+    if mode not in ("screen", "paper"):
+        abort(400)
+    chapter = request.form.get("chapter", "").strip()
+    query = Test.query.filter_by(teacher_id=current_user.id)
+    if chapter:
+        query = query.filter(Test.chapter == chapter)
+    if mode == "screen":
+        with_text = db.session.query(Question.test_id).filter(Question.text.isnot(None), Question.text != "")
+        query = query.filter(Test.id.in_(with_text))
+    changed = query.update({"questions_visible": mode == "screen"}, synchronize_session=False)
+    db.session.commit()
+    scope = f'in "{chapter}"' if chapter else "(all chapters)"
+    flash(
+        f"{changed} test(s) {scope} now "
+        + ("show the questions and options on the student's screen." if mode == "screen"
+           else "use the printed-paper layout (students see only A/B/C/D buttons)."),
+        "success",
+    )
+    return redirect(url_for("teacher.tests_list", chapter=chapter) if chapter else url_for("teacher.tests_list"))
+
+
 def _notify_chapter_published(app, student_ids, teacher_name, chapter, count, link):
     """One email + one push per student for a whole chapter's worth of newly
     published tests (instead of one per test), sent in the background."""
