@@ -70,6 +70,12 @@
       <input type="hidden" name="chapter" value="{{ chapter }}">
       <button class="btn btn-sm btn-success" type="submit">Publish all drafts in this chapter</button>
     </form>
+    <form method="post" action="{{ url_for('teacher.tests_close_chapter') }}" style="display:inline;"
+          onsubmit="return confirm('Close all active tests in this chapter? Results are kept, but students can no longer start them.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="chapter" value="{{ chapter }}">
+      <button class="btn btn-sm btn-ghost" type="submit">Close all active tests in this chapter</button>
+    </form>
     {% else %}
     <span class="small muted">To publish a whole chapter at once, pick it in the <strong>Chapter</strong> filter above, then use the publish button that appears here.</span>
     {% endif %}

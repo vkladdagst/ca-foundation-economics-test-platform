@@ -65,8 +65,6 @@ def portal():
     all_tests = Test.query.filter(
         Test.status.in_(["active", "closed"])
     ).order_by(Test.created_at.desc()).all()
-    visible_tests = [t for t in all_tests if t.visible_to_batch(current_user.batch)]
-    visible_tests.sort(key=lambda t: (_natural_key(t.chapter), _natural_key(t.title)))
 
     # Tests that allow repeat attempts can have several submissions per
     # student. my_submissions holds the LATEST one per test (what the student
@@ -77,6 +75,14 @@ def portal():
         info = attempt_info.setdefault(sub.test_id, {"count": 0, "best": 0.0})
         info["count"] += 1
         info["best"] = max(info["best"], sub.percentage or 0.0)
+
+    # A closed test stays listed only for students who already attempted it
+    # (so they keep their results); for everyone else it is retired, not clutter.
+    visible_tests = [
+        t for t in all_tests
+        if t.visible_to_batch(current_user.batch) and (t.status == "active" or t.id in my_submissions)
+    ]
+    visible_tests.sort(key=lambda t: (_natural_key(t.chapter), _natural_key(t.title)))
 
     progress, chapter_progress = _build_progress(visible_tests, my_submissions)
 

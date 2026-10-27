@@ -405,6 +405,23 @@ def tests_publish_chapter():
     return redirect(url_for("teacher.tests_list", chapter=chapter))
 
 
+@teacher_bp.route("/tests/close-chapter", methods=["POST"])
+@teacher_required
+def tests_close_chapter():
+    """Close every active test in one chapter at once. Results are kept; students
+    who never attempted a closed test no longer see it."""
+    chapter = request.form.get("chapter", "").strip()
+    if not chapter:
+        flash("Choose a chapter first (use the Chapter filter), then close its tests together.", "error")
+        return redirect(url_for("teacher.tests_list"))
+    closed = Test.query.filter_by(teacher_id=current_user.id, chapter=chapter, status="active").update(
+        {"status": "closed"}, synchronize_session=False
+    )
+    db.session.commit()
+    flash(f"Closed {closed} test(s) in \"{chapter}\". Existing results are kept.", "success")
+    return redirect(url_for("teacher.tests_list", chapter=chapter))
+
+
 @teacher_bp.route("/tests/<int:test_id>/unpublish", methods=["POST"])
 @teacher_required
 def test_unpublish(test_id):
